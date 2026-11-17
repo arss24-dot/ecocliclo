@@ -1,0 +1,2327 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoCiclo - Plataforma Inteligente de Gestão de Resíduos</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            200: '#bbf7d0',
+                            300: '#86efac',
+                            400: '#4ade80',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                            950: '#052e16',
+                        },
+                        gov: {
+                            50: '#f0f9ff',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet CSS & JS for Interactive Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- Chart.js for City Hall Executive Dashboard -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, h4, .font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        #mapEcopontos {
+            z-index: 10;
+            min-height: 480px;
+        }
+        .pulse-badge {
+            animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.15); }
+        }
+    </style>
+</head>
+<body class="min-h-full flex flex-col justify-between text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
+
+    <!-- TOP BAR: ROLE SWITCHER & ACTOR IDENTIFICATION -->
+    <aside class="bg-slate-950 text-white text-xs py-2 px-4 border-b border-slate-800 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 bg-brand-500/20 text-brand-400 px-2 py-0.5 rounded-full font-semibold border border-brand-500/30">
+                    <span class="w-2 h-2 rounded-full bg-brand-400 pulse-badge"></span> IFAL Alagoas &bull; Projeto EcoCiclo
+                </span>
+                <span class="text-slate-400 hidden md:inline">Plataforma em Tempo Real conectando os 3 Atores da Cidade</span>
+            </div>
+
+            <!-- Role Switcher Segmented Control -->
+            <div class="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800 shadow-inner">
+                <span class="text-slate-400 font-medium px-2 hidden lg:inline">Alternar Ator:</span>
+                <button onclick="setActor('cidadao')" id="roleBtn-cidadao" class="role-btn px-3 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 bg-brand-600 text-white shadow-sm">
+                    <i class="fa-solid fa-user"></i> Cidadão
+                </button>
+                <button onclick="setActor('coletora')" id="roleBtn-coletora" class="role-btn px-3 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-truck-pickup"></i> Empresa de Coleta
+                    <span id="badgePendingOS" class="bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded-full text-[10px] font-bold">2</span>
+                </button>
+                <button onclick="setActor('prefeitura')" id="roleBtn-prefeitura" class="role-btn px-3 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-building-columns"></i> Prefeitura (Dashboard)
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN HEADER NAVIGATION -->
+    <header class="bg-white border-b border-slate-200 sticky top-8 z-40 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <!-- Brand / Logo -->
+                <div class="flex items-center gap-3 cursor-pointer" onclick="navigateTo('home')">
+                    <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-brand-700 to-brand-500 flex items-center justify-center text-white font-bold text-2xl shadow-md shadow-brand-500/20">
+                        <i class="fa-solid fa-recycle"></i>
+                    </div>
+                    <div>
+                        <span class="text-2xl font-extrabold tracking-tight text-slate-900 font-display">Eco<span class="text-brand-600">Ciclo</span></span>
+                        <span class="block text-[11px] font-medium text-slate-500 -mt-1 tracking-wide">Gestão Inteligente &bull; Alagoas</span>
+                    </div>
+                </div>
+
+                <!-- Contextual Nav Links based on Actor -->
+                <nav id="navbarLinks" class="hidden md:flex items-center space-x-1 lg:space-x-2">
+                    <!-- Populated dynamically via JS -->
+                </nav>
+
+                <!-- Current Actor User Badge / Notifications -->
+                <div class="flex items-center gap-3">
+                    <div id="currentActorInfo" class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl border border-slate-200 transition cursor-pointer" onclick="openActorProfileModal()">
+                        <div id="actorAvatar" class="w-7 h-7 rounded-lg bg-brand-600 text-white flex items-center justify-center font-bold text-xs">A</div>
+                        <div class="text-left hidden sm:block">
+                            <span id="actorName" class="text-xs font-bold text-slate-800 block leading-tight">Ana Luiza Silva</span>
+                            <span id="actorBadgeRole" class="text-[10px] text-brand-700 font-semibold uppercase tracking-wider">Cidadão Morador</span>
+                        </div>
+                    </div>
+
+                    <!-- Mobile Menu Button -->
+                    <button onclick="toggleMobileMenu()" class="md:hidden text-slate-600 p-2 rounded-xl hover:bg-slate-100">
+                        <i class="fa-solid fa-bars text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Navigation Drawer -->
+        <div id="mobileMenu" class="hidden md:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-4 space-y-1">
+            <div id="mobileNavbarLinks" class="space-y-1">
+                <!-- Injetado dinamicamente -->
+            </div>
+        </div>
+    </header>
+
+    <!-- LIVE NOTIFICATION TOAST -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform transition-all duration-300 translate-y-24 opacity-0 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-800 max-w-md">
+        <div id="toastIconContainer" class="w-9 h-9 rounded-xl bg-brand-500/20 text-brand-400 flex items-center justify-center shrink-0">
+            <i id="toastIcon" class="fa-solid fa-circle-check text-lg"></i>
+        </div>
+        <div>
+            <span id="toastTitle" class="font-bold text-sm block">Sucesso</span>
+            <span id="toastMessage" class="text-xs text-slate-300">Operação concluída com sucesso.</span>
+        </div>
+    </div>
+
+    <!-- APP CONTENT ROOT -->
+    <main class="mb-auto">
+
+        <!-- ============================================================== -->
+        <!-- ATO 1: VISÃO DO CIDADÃO (Denúncias, Volumosos, Ecopontos, Cronograma) -->
+        <!-- ============================================================== -->
+        <div id="section-actor-cidadao" class="actor-section">
+
+            <!-- HOME HERO CIDADÃO -->
+            <section id="view-cid-home" class="page-view">
+                <!-- Hero Banner -->
+                <div class="relative bg-gradient-to-br from-brand-950 via-slate-900 to-brand-900 text-white py-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
+                    <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#22c55e_1px,transparent_1px)] [background-size:16px_16px]"></div>
+                    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-center relative z-10">
+                        <div class="lg:col-span-7 space-y-6">
+                            <div class="inline-flex items-center gap-2 bg-brand-500/10 border border-brand-500/30 px-3.5 py-1.5 rounded-full text-brand-300 text-xs font-semibold backdrop-blur-md">
+                                <i class="fa-solid fa-leaf text-brand-400"></i> Gestão de Resíduos Conectada em Tempo Real
+                            </div>
+                            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight font-display leading-tight">
+                                Transforme o descarte irregular em <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-emerald-200">cidade sustentável.</span>
+                            </h1>
+                            <p class="text-base sm:text-lg text-slate-300 leading-relaxed font-normal max-w-2xl">
+                                Com o EcoCiclo, o cidadão denuncia focos irregulares com <strong>foto e GPS</strong> ou agenda a retirada gratuita de <strong>resíduos volumosos</strong> na sua porta. Consulte o mapa de ecopontos e o cronograma do seu bairro em segundos.
+                            </p>
+                            <div class="flex flex-wrap gap-3 pt-2">
+                                <button onclick="navigateTo('cid-denuncia')" class="bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-bold px-6 py-3.5 rounded-xl shadow-lg shadow-red-500/25 transition flex items-center gap-2.5 text-sm">
+                                    <i class="fa-solid fa-camera"></i> Denunciar Descarte Irregular
+                                </button>
+                                <button onclick="navigateTo('cid-volumosos')" class="bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold px-6 py-3.5 rounded-xl shadow-lg shadow-brand-500/25 transition flex items-center gap-2.5 text-sm">
+                                    <i class="fa-solid fa-couch"></i> Agendar Volumosos
+                                </button>
+                                <button onclick="navigateTo('cid-mapa')" class="bg-white/10 hover:bg-white/20 text-white font-semibold px-5 py-3.5 rounded-xl border border-white/20 transition flex items-center gap-2 text-sm backdrop-blur-sm">
+                                    <i class="fa-solid fa-map-location-dot"></i> Ecopontos
+                                </button>
+                            </div>
+
+                            <!-- Live Counters Banner -->
+                            <div class="grid grid-cols-3 gap-4 pt-6 border-t border-slate-800/80">
+                                <div>
+                                    <span class="text-2xl sm:text-3xl font-extrabold text-brand-400 font-display" id="heroStatTon">384.5 t</span>
+                                    <span class="block text-xs text-slate-400 mt-0.5">Resíduos Recolhidos</span>
+                                </div>
+                                <div>
+                                    <span class="text-2xl sm:text-3xl font-extrabold text-white font-display" id="heroStatRes">94.6%</span>
+                                    <span class="block text-xs text-slate-400 mt-0.5">Taxa de Resolução</span>
+                                </div>
+                                <div>
+                                    <span class="text-2xl sm:text-3xl font-extrabold text-amber-400 font-display" id="heroStatTime">14.8h</span>
+                                    <span class="block text-xs text-slate-400 mt-0.5">Tempo Médio de Atendimento</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Interactive Feature Teaser Card -->
+                        <div class="lg:col-span-5">
+                            <div class="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/50 backdrop-blur-xl relative">
+                                <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-8 h-8 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold">
+                                            <i class="fa-solid fa-bell"></i>
+                                        </div>
+                                        <div>
+                                            <span class="text-xs font-bold text-white block">Acompanhamento em Tempo Real</span>
+                                            <span class="text-[11px] text-slate-400">Última O.S. Concluída com Comprovante</span>
+                                        </div>
+                                    </div>
+                                    <span class="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">Resolvido Hoje</span>
+                                </div>
+
+                                <div class="mt-4 space-y-4">
+                                    <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800/80 flex items-center gap-3">
+                                        <img src="https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=150&q=80" alt="Antes" class="w-14 h-14 rounded-xl object-cover border border-red-500/50">
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="text-[10px] font-bold text-red-400 uppercase tracking-wider">Foto do Antes</span>
+                                                <span class="text-[10px] text-slate-500">&bull; Descarte Irregular</span>
+                                            </div>
+                                            <p class="text-xs font-semibold text-slate-200 truncate">Rua das Flores, 120 - Jatiúca</p>
+                                            <span class="text-[11px] text-slate-400">Entulho e móveis em calçada pública</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex items-center justify-center -my-2 text-brand-400">
+                                        <i class="fa-solid fa-arrow-down-long text-lg animate-bounce"></i>
+                                    </div>
+
+                                    <div class="bg-slate-950 p-3.5 rounded-2xl border border-brand-500/30 flex items-center gap-3">
+                                        <img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=150&q=80" alt="Depois" class="w-14 h-14 rounded-xl object-cover border border-emerald-500/50">
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Foto do Depois</span>
+                                                <span class="text-[10px] text-slate-500">&bull; Comprovação Operacional</span>
+                                            </div>
+                                            <p class="text-xs font-semibold text-slate-200 truncate">Local 100% Desobstruído e Limpo</p>
+                                            <span class="text-[11px] text-emerald-400 font-medium">Equipe Alpha &bull; Caminhão Cata-Treco 02 (450 kg)</span>
+                                        </div>
+                                    </div>
+
+                                    <button onclick="navigateTo('cid-demandas')" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                                        <i class="fa-solid fa-timeline"></i> Ver Minhas Solicitações e Histórico
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4 Quick Cards Access -->
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative z-20">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div onclick="navigateTo('cid-denuncia')" class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:border-red-400 transition cursor-pointer group">
+                            <div class="w-12 h-12 rounded-xl bg-red-100 text-red-600 flex items-center justify-center text-xl font-bold mb-4 group-hover:scale-110 transition">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                            </div>
+                            <h3 class="font-bold text-base text-slate-900 group-hover:text-red-600 transition">Denúncia com GPS</h3>
+                            <p class="text-xs text-slate-500 mt-1">Fotografe o descarte irregular e anexe as coordenadas geográficas automáticas.</p>
+                        </div>
+
+                        <div onclick="navigateTo('cid-volumosos')" class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:border-brand-500 transition cursor-pointer group">
+                            <div class="w-12 h-12 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center text-xl font-bold mb-4 group-hover:scale-110 transition">
+                                <i class="fa-solid fa-truck-ramp-box"></i>
+                            </div>
+                            <h3 class="font-bold text-base text-slate-900 group-hover:text-brand-700 transition">Coleta de Volumosos</h3>
+                            <p class="text-xs text-slate-500 mt-1">Agende a retirada gratuita de sofás, móveis, galhos de poda e eletrodomésticos.</p>
+                        </div>
+
+                        <div onclick="navigateTo('cid-mapa')" class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:border-blue-500 transition cursor-pointer group">
+                            <div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl font-bold mb-4 group-hover:scale-110 transition">
+                                <i class="fa-solid fa-map-location-dot"></i>
+                            </div>
+                            <h3 class="font-bold text-base text-slate-900 group-hover:text-blue-600 transition">Mapa de Ecopontos</h3>
+                            <p class="text-xs text-slate-500 mt-1">Localize os postos de entrega voluntária (PEV) em Maceió com materiais aceitos.</p>
+                        </div>
+
+                        <div onclick="navigateTo('cid-cronograma')" class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:border-purple-500 transition cursor-pointer group">
+                            <div class="w-12 h-12 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl font-bold mb-4 group-hover:scale-110 transition">
+                                <i class="fa-solid fa-calendar-days"></i>
+                            </div>
+                            <h3 class="font-bold text-base text-slate-900 group-hover:text-purple-600 transition">Cronograma do Bairro</h3>
+                            <p class="text-xs text-slate-500 mt-1">Consulte os dias e turnos da coleta comum, seletiva e caminhão cata-treco.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Environmental Impact Calculator & Waste Guide -->
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                        <div class="lg:col-span-7 bg-white p-8 rounded-3xl border border-slate-200 shadow-xs">
+                            <div class="flex items-center gap-3 mb-6">
+                                <div class="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-lg">
+                                    <i class="fa-solid fa-calculator"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-extrabold text-xl text-slate-900 font-display">Calculadora de Impacto Ecológico</h3>
+                                    <p class="text-xs text-slate-500">Veja o benefício direto ao descartar seus resíduos no EcoCiclo</p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Papel / Papelão (kg)</label>
+                                    <input type="number" id="calcPapel" value="10" oninput="calculateImpact()" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Plástico (kg)</label>
+                                    <input type="number" id="calcPlastico" value="5" oninput="calculateImpact()" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">Vidro / Metal (kg)</label>
+                                    <input type="number" id="calcVidroMetal" value="8" oninput="calculateImpact()" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-brand-500">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-4 bg-brand-50/70 p-4 rounded-2xl border border-brand-200/60">
+                                <div class="text-center">
+                                    <span class="text-2xl font-black text-brand-800 font-display" id="resAgua">280 L</span>
+                                    <span class="block text-[11px] font-medium text-brand-700 mt-1"><i class="fa-solid fa-droplet text-blue-500"></i> Água Poupada</span>
+                                </div>
+                                <div class="text-center border-x border-brand-200">
+                                    <span class="text-2xl font-black text-brand-800 font-display" id="resCo2">34.5 kg</span>
+                                    <span class="block text-[11px] font-medium text-brand-700 mt-1"><i class="fa-solid fa-cloud text-slate-500"></i> CO₂ Evitado</span>
+                                </div>
+                                <div class="text-center">
+                                    <span class="text-2xl font-black text-brand-800 font-display" id="resEnergia">46 kWh</span>
+                                    <span class="block text-[11px] font-medium text-brand-700 mt-1"><i class="fa-solid fa-bolt text-amber-500"></i> Energia Salva</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Separação Consciente (Guia Rápido) -->
+                        <div class="lg:col-span-5 bg-gradient-to-br from-slate-900 to-slate-950 text-white p-8 rounded-3xl border border-slate-800 shadow-xl">
+                            <h3 class="font-extrabold text-xl font-display mb-2 flex items-center gap-2">
+                                <i class="fa-solid fa-circle-check text-brand-400"></i> Regra de Ouro do Descarte
+                            </h3>
+                            <p class="text-xs text-slate-400 leading-relaxed mb-6">
+                                Pequenos cuidados na separação aumentam o valor comercial do material e garantem a segurança dos cooperados e catadores.
+                            </p>
+                            <div class="space-y-3.5 text-xs">
+                                <div class="flex items-start gap-3 bg-slate-800/60 p-3 rounded-xl border border-slate-700/50">
+                                    <i class="fa-solid fa-pump-soap text-blue-400 text-base mt-0.5"></i>
+                                    <div>
+                                        <strong class="text-slate-200 block">Lave ligeiramente as embalagens</strong>
+                                        <span class="text-slate-400">Passe água de reuso para evitar mau cheiro e proliferação de insetos.</span>
+                                    </div>
+                                </div>
+                                <div class="flex items-start gap-3 bg-slate-800/60 p-3 rounded-xl border border-slate-700/50">
+                                    <i class="fa-solid fa-box-tissue text-amber-400 text-base mt-0.5"></i>
+                                    <div>
+                                        <strong class="text-slate-200 block">Embrulhe vidros pontiagudos</strong>
+                                        <span class="text-slate-400">Coloque dentro de caixas de leite ou papelão para evitar acidentes com os garis.</span>
+                                    </div>
+                                </div>
+                                <div class="flex items-start gap-3 bg-slate-800/60 p-3 rounded-xl border border-slate-700/50">
+                                    <i class="fa-solid fa-ban text-red-400 text-base mt-0.5"></i>
+                                    <div>
+                                        <strong class="text-slate-200 block">Nunca misture lixo orgânico com recicláveis</strong>
+                                        <span class="text-slate-400">Resíduos úmidos inutilizam papéis e plásticos secos.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TELA: DENÚNCIA DE DESCARTE IRREGULAR (COM FOTO E GPS) -->
+            <section id="view-cid-denuncia" class="page-view hidden max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-10">
+                    <div class="flex items-center justify-between pb-6 border-b border-slate-100 mb-8">
+                        <div>
+                            <span class="text-xs font-bold uppercase tracking-wider text-red-600 bg-red-50 px-2.5 py-1 rounded-full">Canal do Cidadão</span>
+                            <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 font-display mt-2 flex items-center gap-3">
+                                <i class="fa-solid fa-camera text-red-600"></i> Denúncia de Descarte Irregular
+                            </h2>
+                            <p class="text-xs sm:text-sm text-slate-500 mt-1">
+                                Anexe a fotografia da irregularidade e capture as coordenadas de GPS para despacho imediato da equipe coletora.
+                            </p>
+                        </div>
+                        <div class="hidden sm:block">
+                            <span class="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-2xl font-bold">
+                                <i class="fa-solid fa-map-pin"></i>
+                            </span>
+                        </div>
+                    </div>
+
+                    <form id="denunciaForm" onsubmit="handleDenunciaSubmit(event)" class="space-y-6">
+                        <!-- Step 1: GPS Capture -->
+                        <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200/80">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                                <div>
+                                    <h4 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                                        <i class="fa-solid fa-location-crosshairs text-brand-600"></i> Localização Georreferenciada (GPS)
+                                    </h4>
+                                    <p class="text-xs text-slate-500">Capture suas coordenadas atuais com precisão ou ajuste manualmente.</p>
+                                </div>
+                                <button type="button" onclick="captureGPSCoordinates()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-sm shrink-0">
+                                    <i class="fa-solid fa-crosshairs"></i> Capturar Meu GPS Agora
+                                </button>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">Latitude</label>
+                                    <input type="text" id="denLatitude" required value="-9.6658" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">Longitude</label>
+                                    <input type="text" id="denLongitude" required value="-35.7353" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">Bairro de Maceió</label>
+                                    <select id="denBairro" required class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                                        <option value="Centro">Centro</option>
+                                        <option value="Pajuçara">Pajuçara</option>
+                                        <option value="Ponta Verde">Ponta Verde</option>
+                                        <option value="Jatiúca">Jatiúca</option>
+                                        <option value="Farol">Farol</option>
+                                        <option value="Jacintinho">Jacintinho</option>
+                                        <option value="Benedito Bentes">Benedito Bentes</option>
+                                        <option value="Mangabeiras">Mangabeiras</option>
+                                        <option value="Cruz das Almas">Cruz das Almas</option>
+                                        <option value="Levada">Levada</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">Endereço / Referência</label>
+                                    <input type="text" id="denEndereco" required value="Rua Barão de Penedo, próximo ao cruzamento" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Photo Upload & Preview -->
+                        <div>
+                            <label class="block text-sm font-bold text-slate-800 mb-2">Comprovação Visual da Irregularidade (Fotografia)</label>
+                            <div class="border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-2xl p-6 text-center bg-slate-50/50 transition">
+                                <div id="photoPlaceholder" class="space-y-3">
+                                    <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-400"></i>
+                                    <div>
+                                        <label for="denPhotoInput" class="cursor-pointer text-xs font-bold text-brand-700 hover:underline">Clique para enviar uma foto</label>
+                                        <span class="text-xs text-slate-500"> ou selecione um exemplo rápido abaixo</span>
+                                    </div>
+                                    <input type="file" id="denPhotoInput" accept="image/*" onchange="handlePhotoUpload(event)" class="hidden">
+                                </div>
+                                
+                                <div id="photoPreviewContainer" class="hidden mt-3 relative inline-block">
+                                    <img id="photoPreviewImg" src="" alt="Foto da denúncia" class="h-44 rounded-xl object-cover border-2 border-brand-500 shadow-md mx-auto">
+                                    <button type="button" onclick="clearPhotoUpload()" class="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-md">
+                                        <i class="fa-solid fa-xmark"></i>
+                                    </button>
+                                </div>
+
+                                <!-- Preset Quick Photos for Easy Demo -->
+                                <div class="mt-4 pt-4 border-t border-slate-200/80 flex flex-wrap items-center justify-center gap-2">
+                                    <span class="text-[11px] font-semibold text-slate-500 mr-2">Fotos de demonstração rápida:</span>
+                                    <button type="button" onclick="setPresetPhoto('entulho')" class="text-xs bg-white border border-slate-300 hover:border-brand-500 px-3 py-1 rounded-lg text-slate-700 transition">
+                                        🏗️ Entulho na Calçada
+                                    </button>
+                                    <button type="button" onclick="setPresetPhoto('sofa')" class="text-xs bg-white border border-slate-300 hover:border-brand-500 px-3 py-1 rounded-lg text-slate-700 transition">
+                                        🛋️ Sofá / Móveis
+                                    </button>
+                                    <button type="button" onclick="setPresetPhoto('lixo')" class="text-xs bg-white border border-slate-300 hover:border-brand-500 px-3 py-1 rounded-lg text-slate-700 transition">
+                                        🗑️ Terreno com Resíduos
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 3: Details & Criticality -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Tipo Predominante de Material</label>
+                                <select id="denTipoMaterial" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                                    <option value="Entulho e Resíduos de Construção">Entulho e Resíduos de Construção</option>
+                                    <option value="Móveis Abandonados e Volumosos">Móveis Abandonados e Volumosos</option>
+                                    <option value="Poda e Restos Vegetais">Poda e Restos Vegetais</option>
+                                    <option value="Lixo Doméstico em Área Pública">Lixo Doméstico em Área Pública</option>
+                                    <option value="Eletrônicos e Sucatas">Eletrônicos e Sucatas</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Estimativa de Volume</label>
+                                <select id="denTamanho" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                                    <option value="Médio (até 1 caçamba de camionete)">Médio (até 1 caçamba de camionete)</option>
+                                    <option value="Pequeno (alguns sacos / 1 móvel)">Pequeno (alguns sacos / 1 móvel)</option>
+                                    <option value="Grande / Ponto Crítico (obstrui via inteira)">Grande / Ponto Crítico (obstrui via inteira)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Critical flags -->
+                        <div class="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 space-y-2">
+                            <span class="text-xs font-bold text-amber-900 block">Agravantes Sanitários e Urbanos:</span>
+                            <div class="flex flex-wrap gap-4 text-xs text-amber-950">
+                                <label class="flex items-center gap-2 cursor-pointer font-medium">
+                                    <input type="checkbox" id="denCheckDengue" checked class="w-4 h-4 text-amber-600 rounded">
+                                    Água acumulada / Potencial foco do mosquito da Dengue
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer font-medium">
+                                    <input type="checkbox" id="denCheckObstrucao" class="w-4 h-4 text-amber-600 rounded">
+                                    Obstrui a passagem de pedestres ou tráfego de veículos
+                                </label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Descrição Detalhada da Ocorrência</label>
+                            <textarea id="denDescricao" rows="3" required placeholder="Ex: Descarte recorrente de restos de construção civil e madeiras na esquina com a praça..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-brand-500"></textarea>
+                        </div>
+
+                        <div class="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                            <button type="button" onclick="navigateTo('cid-home')" class="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 text-xs font-bold hover:bg-slate-50 transition">
+                                Voltar
+                            </button>
+                            <button type="submit" class="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-6 py-3 rounded-xl shadow-lg shadow-red-600/30 transition flex items-center gap-2">
+                                <i class="fa-solid fa-paper-plane"></i> Transmitir Denúncia com Protocolo
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- TELA: AGENDAMENTO DE COLETA DE RESÍDUOS VOLUMOSOS -->
+            <section id="view-cid-volumosos" class="page-view hidden max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-10">
+                    <div class="flex items-center justify-between pb-6 border-b border-slate-100 mb-8">
+                        <div>
+                            <span class="text-xs font-bold uppercase tracking-wider text-brand-700 bg-brand-50 px-2.5 py-1 rounded-full">Serviço Oficial Gratuito</span>
+                            <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 font-display mt-2 flex items-center gap-3">
+                                <i class="fa-solid fa-truck-ramp-box text-brand-600"></i> Agendamento de Resíduos Volumosos
+                            </h2>
+                            <p class="text-xs sm:text-sm text-slate-500 mt-1">
+                                O caminhão Cata-Treco retira sofás, móveis, eletrodomésticos da linha branca e galhos de poda diretamente no seu portão.
+                            </p>
+                        </div>
+                        <div class="hidden sm:block">
+                            <span class="w-12 h-12 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center text-2xl font-bold">
+                                <i class="fa-solid fa-couch"></i>
+                            </span>
+                        </div>
+                    </div>
+
+                    <form id="volumosoForm" onsubmit="handleVolumosoSubmit(event)" class="space-y-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Categoria de Material Volumoso</label>
+                                <select id="volCategoria" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                                    <option value="Sofá / Colchão / Estofados">Sofá / Colchão / Estofados</option>
+                                    <option value="Móveis Desmontados (Guarda-roupa, Mesa)">Móveis Desmontados (Guarda-roupa, Mesa)</option>
+                                    <option value="Eletrodomésticos Linha Branca (Geladeira, Fogão)">Eletrodomésticos Linha Branca (Geladeira, Fogão)</option>
+                                    <option value="Poda de Árvores / Galhos Enfeixados">Poda de Árvores / Galhos Enfeixados</option>
+                                    <option value="Entulho de Pequena Reforma (Ensacado até 1m³)">Entulho de Pequena Reforma (Ensacado até 1m³)</option>
+                                    <option value="Eletrônicos de Grande Porte">Eletrônicos de Grande Porte</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Quantidade Estimada de Itens</label>
+                                <input type="number" id="volQuantidade" min="1" max="10" value="1" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Data Desejada para Retirada</label>
+                                <input type="date" id="volData" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Turno Preferencial</label>
+                                <select id="volTurno" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                                    <option value="Matutino (08h às 12h)">Matutino (08h às 12h)</option>
+                                    <option value="Vespertino (13h às 17h)">Vespertino (13h às 17h)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                            <div class="sm:col-span-2">
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Endereço Completo de Retirada</label>
+                                <input type="text" id="volEndereco" required value="Av. Álvaro Otacílio, 800 - Apto 302" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Bairro</label>
+                                <select id="volBairro" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm">
+                                    <option value="Ponta Verde">Ponta Verde</option>
+                                    <option value="Pajuçara">Pajuçara</option>
+                                    <option value="Jatiúca">Jatiúca</option>
+                                    <option value="Centro">Centro</option>
+                                    <option value="Farol">Farol</option>
+                                    <option value="Jacintinho">Jacintinho</option>
+                                    <option value="Benedito Bentes">Benedito Bentes</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Observações para a Equipe de Coleta</label>
+                            <textarea id="volObs" rows="3" placeholder="Ex: O sofá estará na calçada da garagem a partir das 07h30. Portão azul." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"></textarea>
+                        </div>
+
+                        <div class="bg-brand-50 p-4 rounded-2xl border border-brand-200 text-xs text-brand-900 flex items-center gap-3">
+                            <i class="fa-solid fa-circle-info text-brand-600 text-lg"></i>
+                            <span>Você receberá notificações SMS/WhatsApp e poderá acompanhar a rota do caminhão em tempo real.</span>
+                        </div>
+
+                        <div class="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                            <button type="button" onclick="navigateTo('cid-home')" class="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 text-xs font-bold hover:bg-slate-50 transition">
+                                Cancelar
+                            </button>
+                            <button type="submit" class="bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold px-6 py-3 rounded-xl shadow-lg shadow-brand-700/30 transition flex items-center gap-2">
+                                <i class="fa-solid fa-calendar-check"></i> Confirmar Agendamento de Coleta
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- TELA: MAPA INTERATIVO DE ECOPONTOS (LEAFLET.JS) -->
+            <section id="view-cid-mapa" class="page-view hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                    <div>
+                        <span class="text-xs font-bold uppercase tracking-wider text-brand-700 bg-brand-50 px-2.5 py-1 rounded-full">Rede Municipal de Alagoas</span>
+                        <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 font-display mt-2 flex items-center gap-2.5">
+                            <i class="fa-solid fa-map-location-dot text-brand-600"></i> Mapa Interativo de Ecopontos
+                        </h2>
+                        <p class="text-xs sm:text-sm text-slate-500 mt-1">Consulte os postos de entrega voluntária de resíduos, horários e materiais aceitos.</p>
+                    </div>
+
+                    <!-- Material Filter Badges -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="filterMapByMaterial('todos')" id="filterMap-todos" class="map-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-brand-600 text-white shadow-xs">Todos</button>
+                        <button onclick="filterMapByMaterial('reciclavel')" id="filterMap-reciclavel" class="map-filter-btn px-3 py-1.5 rounded-xl text-xs font-medium bg-white text-slate-600 border border-slate-200 hover:bg-slate-50">Recicláveis Secos</button>
+                        <button onclick="filterMapByMaterial('entulho')" id="filterMap-entulho" class="map-filter-btn px-3 py-1.5 rounded-xl text-xs font-medium bg-white text-slate-600 border border-slate-200 hover:bg-slate-50">Entulho / Obras</button>
+                        <button onclick="filterMapByMaterial('eletronicos')" id="filterMap-eletronicos" class="map-filter-btn px-3 py-1.5 rounded-xl text-xs font-medium bg-white text-slate-600 border border-slate-200 hover:bg-slate-50">Eletrônicos &amp; Baterias</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    <!-- Interactive Leaflet Map Canvas -->
+                    <div class="lg:col-span-8 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden relative">
+                        <div id="mapEcopontos" class="w-full"></div>
+                        <div class="p-3.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-600 flex flex-wrap items-center justify-between gap-2">
+                            <span class="flex items-center gap-1.5">
+                                <i class="fa-solid fa-satellite-dish text-brand-600"></i> Base cartográfica OpenStreetMap &bull; Coordenadas Reais de Maceió - AL
+                            </span>
+                            <span class="font-bold text-brand-700 bg-brand-100 px-2 py-0.5 rounded-md text-[11px]">6 Ecopontos Ativos</span>
+                        </div>
+                    </div>
+
+                    <!-- Side List of Ecopontos -->
+                    <div class="lg:col-span-4 space-y-3 max-h-[540px] overflow-y-auto pr-1" id="ecopontosListSidebar">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- TELA: CRONOGRAMA DE COLETA POR BAIRRO -->
+            <section id="view-cid-cronograma" class="page-view hidden max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                <div class="text-center max-w-2xl mx-auto mb-8">
+                    <span class="text-xs font-bold uppercase tracking-wider text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full">Organização Urbana</span>
+                    <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 font-display mt-2">
+                        Cronograma de Coleta do seu Bairro
+                    </h2>
+                    <p class="text-xs sm:text-sm text-slate-500 mt-1">
+                        Consulte os dias e turnos exatos em que a frota de coleta domiciliar, coleta seletiva e o caminhão cata-treco passam na sua rua.
+                    </p>
+                </div>
+
+                <!-- Bairro Selector Box -->
+                <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm mb-8">
+                    <div class="flex flex-col sm:flex-row items-center gap-4">
+                        <div class="flex-1 w-full">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Selecione seu Bairro em Maceió:</label>
+                            <select id="selectCronogramaBairro" onchange="renderCronogramaDetails()" class="w-full px-4 py-3 rounded-2xl border border-slate-300 text-sm font-semibold text-slate-800 bg-slate-50 focus:ring-2 focus:ring-brand-500">
+                                <option value="Pajuçara">Pajuçara</option>
+                                <option value="Ponta Verde">Ponta Verde</option>
+                                <option value="Jatiúca">Jatiúca</option>
+                                <option value="Centro">Centro</option>
+                                <option value="Farol">Farol</option>
+                                <option value="Jacintinho">Jacintinho</option>
+                                <option value="Benedito Bentes">Benedito Bentes</option>
+                            </select>
+                        </div>
+                        <div class="w-full sm:w-auto self-end">
+                            <button onclick="renderCronogramaDetails()" class="w-full sm:w-auto bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold px-6 py-3.5 rounded-2xl transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-magnifying-glass"></i> Consultar Bairro
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cronograma Dynamic Cards Container -->
+                <div id="cronogramaCardsContainer" class="space-y-6">
+                    <!-- Populated by JS -->
+                </div>
+            </section>
+
+            <!-- TELA: MINHAS DEMANDAS & RASTREAMENTO COM FOTOS ANTES E DEPOIS -->
+            <section id="view-cid-demandas" class="page-view hidden max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                    <div>
+                        <span class="text-xs font-bold uppercase tracking-wider text-brand-700 bg-brand-50 px-2.5 py-1 rounded-full">Transparência Total</span>
+                        <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 font-display mt-2 flex items-center gap-2.5">
+                            <i class="fa-solid fa-clipboard-list text-brand-600"></i> Minhas Demandas &amp; Rastreamento
+                        </h2>
+                        <p class="text-xs sm:text-sm text-slate-500 mt-1">Acompanhe a triagem, o despacho dos caminhões e veja os laudos fotográficos de atendimento.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="navigateTo('cid-denuncia')" class="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-xs">
+                            <i class="fa-solid fa-plus"></i> Nova Denúncia
+                        </button>
+                        <button onclick="navigateTo('cid-volumosos')" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-xs">
+                            <i class="fa-solid fa-calendar-plus"></i> Agendar Volumoso
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Demandas Cards List -->
+                <div class="space-y-6" id="minhasDemandasContainer">
+                    <!-- Populated by JS -->
+                </div>
+            </section>
+
+        </div>
+
+        <!-- ============================================================== -->
+        <!-- ATO 2: VISÃO DA EMPRESA DE COLETA (Gestão de O.S. e Comprovação) -->
+        <!-- ============================================================== -->
+        <div id="section-actor-coletora" class="actor-section hidden">
+            <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <!-- Header Coletora -->
+                <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 sm:p-8 text-white mb-8 border border-slate-700 shadow-xl">
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                        <div>
+                            <div class="inline-flex items-center gap-2 bg-amber-400/20 text-amber-300 px-3 py-1 rounded-full text-xs font-bold border border-amber-400/30 mb-2">
+                                <i class="fa-solid fa-truck-pickup"></i> Portal Operacional &bull; EcoLimp Serviços Urbanos
+                            </div>
+                            <h2 class="text-2xl sm:text-4xl font-extrabold font-display">Gestão &amp; Otimização de Ordens de Serviço (O.S.)</h2>
+                            <p class="text-xs sm:text-sm text-slate-300 mt-2 max-w-2xl">
+                                "Na outra ponta, a empresa de coleta organiza e otimiza as ordens de serviço, comprovando o atendimento com fotos."
+                            </p>
+                        </div>
+
+                        <!-- Fleet Quick Metrics -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div class="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 text-center">
+                                <span class="text-xl sm:text-2xl font-extrabold text-amber-400 font-display" id="osCountPendentes">2</span>
+                                <span class="block text-[11px] text-slate-400 mt-0.5">Pendentes</span>
+                            </div>
+                            <div class="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 text-center">
+                                <span class="text-xl sm:text-2xl font-extrabold text-blue-400 font-display" id="osCountEmRota">1</span>
+                                <span class="block text-[11px] text-slate-400 mt-0.5">Em Rota</span>
+                            </div>
+                            <div class="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 text-center">
+                                <span class="text-xl sm:text-2xl font-extrabold text-emerald-400 font-display" id="osCountConcluidas">3</span>
+                                <span class="block text-[11px] text-slate-400 mt-0.5">Concluídas</span>
+                            </div>
+                            <div class="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 text-center">
+                                <span class="text-xl sm:text-2xl font-extrabold text-white font-display" id="osTotalKgHoje">3.4 t</span>
+                                <span class="block text-[11px] text-slate-400 mt-0.5">Recolhidas Hoje</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter OS Tabs -->
+                <div class="flex items-center justify-between pb-4 mb-4 border-b border-slate-200">
+                    <div class="flex gap-2">
+                        <button onclick="filterOSTable('todas')" id="osTabBtn-todas" class="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 text-white">Todas as O.S.</button>
+                        <button onclick="filterOSTable('pendentes')" id="osTabBtn-pendentes" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">Pendentes / Fila</button>
+                        <button onclick="filterOSTable('em_rota')" id="osTabBtn-em_rota" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">Caminhão em Deslocamento</button>
+                        <button onclick="filterOSTable('concluidas')" id="osTabBtn-concluidas" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50">Comprovadas &amp; Finalizadas</button>
+                    </div>
+                    <span class="text-xs text-slate-400 hidden sm:inline"><i class="fa-solid fa-arrows-rotate animate-spin mr-1"></i> Atualização em tempo real</span>
+                </div>
+
+                <!-- OS Table -->
+                <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                                <tr>
+                                    <th class="px-5 py-4">Código O.S.</th>
+                                    <th class="px-5 py-4">Origem / Solicitante</th>
+                                    <th class="px-5 py-4">Localização &amp; GPS</th>
+                                    <th class="px-5 py-4">Material / Categoria</th>
+                                    <th class="px-5 py-4">Prioridade</th>
+                                    <th class="px-5 py-4">Status</th>
+                                    <th class="px-5 py-4 text-right">Ação Operacional</th>
+                                </tr>
+                            </thead>
+                            <tbody id="coletoraOSTableBody" class="divide-y divide-slate-100">
+                                <!-- Populated dynamically by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ============================================================== -->
+        <!-- ATO 3: VISÃO DA PREFEITURA / GOVERNO (Dashboard, SLA, Hotspots) -->
+        <!-- ============================================================== -->
+        <div id="section-actor-prefeitura" class="actor-section hidden">
+            <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <!-- Header Prefeitura -->
+                <div class="bg-gradient-to-r from-gov-900 via-slate-900 to-gov-900 rounded-3xl p-6 sm:p-8 text-white mb-8 border border-gov-700/60 shadow-xl">
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                        <div>
+                            <div class="inline-flex items-center gap-2 bg-gov-600/30 text-sky-300 px-3 py-1 rounded-full text-xs font-bold border border-sky-400/30 mb-2">
+                                <i class="fa-solid fa-building-columns"></i> Secretaria Municipal de Desenvolvimento Territorial e Meio Ambiente (SEDET)
+                            </div>
+                            <h2 class="text-2xl sm:text-4xl font-extrabold font-display">Dashboard Executivo de Limpeza Urbana e SLA</h2>
+                            <p class="text-xs sm:text-sm text-slate-300 mt-2 max-w-2xl">
+                                "A prefeitura ganha um dashboard com indicadores de tempo de atendimento e áreas críticas. Transformamos o descarte irregular em gestão inteligente, sustentabilidade e transparência."
+                            </p>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <button onclick="exportRelatorioPDF()" class="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-4 py-2.5 rounded-xl border border-white/20 transition flex items-center gap-2 backdrop-blur-sm">
+                                <i class="fa-solid fa-file-pdf text-rose-400"></i> Exportar Relatório ESG
+                            </button>
+                            <button onclick="openModalNovoEcoponto()" class="bg-brand-500 hover:bg-brand-600 text-slate-950 text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-brand-500/20 transition flex items-center gap-2">
+                                <i class="fa-solid fa-plus"></i> Novo Ecoponto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4 Executive KPIs Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    <!-- KPI 1: Tempo Médio SLA -->
+                    <div class="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm flex flex-col justify-between">
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Tempo Médio Atendimento</span>
+                            <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-lg">
+                                <i class="fa-solid fa-stopwatch"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex items-baseline gap-2">
+                                <span class="text-3xl font-extrabold text-slate-900 font-display">14.8h</span>
+                                <span class="text-xs font-bold text-emerald-600 flex items-center gap-0.5"><i class="fa-solid fa-arrow-down"></i> 79% (de 72h)</span>
+                            </div>
+                            <span class="block text-xs text-slate-400 mt-1">SLA Municipal cumprido dentro da meta de 24h</span>
+                        </div>
+                    </div>
+
+                    <!-- KPI 2: Taxa de Resolução -->
+                    <div class="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm flex flex-col justify-between">
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Taxa de Resolução</span>
+                            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex items-baseline gap-2">
+                                <span class="text-3xl font-extrabold text-slate-900 font-display">94.6%</span>
+                                <span class="text-xs font-bold text-emerald-600 flex items-center gap-0.5"><i class="fa-solid fa-arrow-up"></i> +12%</span>
+                            </div>
+                            <span class="block text-xs text-slate-400 mt-1">178 de 188 denúncias concluídas com foto</span>
+                        </div>
+                    </div>
+
+                    <!-- KPI 3: Desvio de Aterros Clandestinos -->
+                    <div class="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm flex flex-col justify-between">
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Recolhido</span>
+                            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg">
+                                <i class="fa-solid fa-weight-hanging"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex items-baseline gap-2">
+                                <span class="text-3xl font-extrabold text-slate-900 font-display">384.5 t</span>
+                                <span class="text-xs font-bold text-blue-600">Este Mês</span>
+                            </div>
+                            <span class="block text-xs text-slate-400 mt-1">Destinados a cooperativas e aterro sanitário licenciado</span>
+                        </div>
+                    </div>
+
+                    <!-- KPI 4: Economia Financeira Estimada -->
+                    <div class="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-sm flex flex-col justify-between">
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Economia ao Município</span>
+                            <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-lg">
+                                <i class="fa-solid fa-piggy-bank"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex items-baseline gap-2">
+                                <span class="text-3xl font-extrabold text-slate-900 font-display">R$ 412k</span>
+                                <span class="text-xs font-bold text-purple-600">Economizados</span>
+                            </div>
+                            <span class="block text-xs text-slate-400 mt-1">Menos gastos em saúde pública e desassoreamento de canais</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section: Monthly Trend & Waste Composition -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+                    <!-- Chart 1: Resoluções vs Denúncias -->
+                    <div class="lg:col-span-8 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="font-extrabold text-slate-900 text-base font-display">Evolução Mensal: Denúncias vs. Resoluções</h3>
+                                <p class="text-xs text-slate-500">Comparativo de velocidade de resposta e encerramento de O.S.</p>
+                            </div>
+                            <span class="text-xs bg-slate-100 text-slate-600 font-bold px-2.5 py-1 rounded-lg">2026</span>
+                        </div>
+                        <div class="h-64">
+                            <canvas id="chartEvolucaoMensal"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 2: Categorias de Resíduos -->
+                    <div class="lg:col-span-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div class="mb-4">
+                            <h3 class="font-extrabold text-slate-900 text-base font-display">Composição de Resíduos</h3>
+                            <p class="text-xs text-slate-500">Distribuição percentual por tipo recolhido</p>
+                        </div>
+                        <div class="h-56 relative flex items-center justify-center">
+                            <canvas id="chartTiposResiduos"></canvas>
+                        </div>
+                        <div class="text-[11px] text-slate-400 text-center pt-2 border-t border-slate-100">
+                            Fonte: Ordens de Serviço validadas pela empresa coletora
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Monitoring: Critical Areas & Hotspots -->
+                <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100 mb-6">
+                        <div>
+                            <span class="text-xs font-bold uppercase tracking-wider text-red-600 bg-red-50 px-2.5 py-1 rounded-full">Inteligência de Dados</span>
+                            <h3 class="text-xl sm:text-2xl font-extrabold text-slate-900 font-display mt-2 flex items-center gap-2">
+                                <i class="fa-solid fa-fire text-red-500"></i> Monitoramento de Áreas Críticas &amp; Hotspots de Descarte
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-1">Identificação automática de pontos de descarte recorrente para intervenção preventiva da Prefeitura.</p>
+                        </div>
+                        <button onclick="gerarPlanoAcao()" class="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2">
+                            <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i> Gerar Plano de Ação Preventivo
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" id="criticalHotspotsContainer">
+                        <!-- Injetado por JS -->
+                    </div>
+
+                    <!-- Hotspot Table -->
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
+                                <tr>
+                                    <th class="px-4 py-3">Bairro / Local</th>
+                                    <th class="px-4 py-3">Nível de Risco</th>
+                                    <th class="px-4 py-3">Ocorrências (30d)</th>
+                                    <th class="px-4 py-3">Principal Material</th>
+                                    <th class="px-4 py-3">Ação Recomendada pelo Sistema</th>
+                                    <th class="px-4 py-3 text-right">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 text-slate-700">
+                                <tr>
+                                    <td class="px-4 py-3 font-bold">Jacintinho (Grota do Cigano)</td>
+                                    <td class="px-4 py-3"><span class="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full text-[10px]">Alerta Vermelho</span></td>
+                                    <td class="px-4 py-3 font-semibold">28 denúncias</td>
+                                    <td class="px-4 py-3">Entulho e Móveis</td>
+                                    <td class="px-4 py-3">Instalação prioritária de novo Ecoponto Móvel</td>
+                                    <td class="px-4 py-3 text-right"><span class="text-amber-600 font-bold">Em Análise</span></td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-bold">Benedito Bentes (Av. Pratagy)</td>
+                                    <td class="px-4 py-3"><span class="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full text-[10px]">Alerta Vermelho</span></td>
+                                    <td class="px-4 py-3 font-semibold">22 denúncias</td>
+                                    <td class="px-4 py-3">Restos de Poda e Lixo</td>
+                                    <td class="px-4 py-3">Aumento da frequência do Cata-Treco para semanal</td>
+                                    <td class="px-4 py-3 text-right"><span class="text-blue-600 font-bold">Planejado</span></td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-bold">Levada (Próx. Mercado da Produção)</td>
+                                    <td class="px-4 py-3"><span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full text-[10px]">Atenção Amarela</span></td>
+                                    <td class="px-4 py-3 font-semibold">14 denúncias</td>
+                                    <td class="px-4 py-3">Caixas de Madeira e Plástico</td>
+                                    <td class="px-4 py-3">Fiscalização e conscientização comercial</td>
+                                    <td class="px-4 py-3 text-right"><span class="text-emerald-600 font-bold">Controlado</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+    </main>
+
+    <!-- FOOTER WITH ACADEMIC CITATION (IFAL) -->
+    <footer class="bg-slate-950 text-slate-400 py-10 border-t border-slate-800 mt-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-center pb-8 border-b border-slate-800">
+                <div class="md:col-span-5 space-y-2">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-xl bg-brand-600 text-white flex items-center justify-center font-bold text-lg">
+                            <i class="fa-solid fa-recycle"></i>
+                        </div>
+                        <span class="text-xl font-extrabold text-white font-display">Eco<span class="text-brand-500">Ciclo</span></span>
+                    </div>
+                    <p class="text-xs text-slate-400 max-w-sm">
+                        Plataforma web integrada para descarte responsável, gestão de rotas e transparência pública ambiental.
+                    </p>
+                </div>
+
+                <div class="md:col-span-7 text-xs text-slate-400 space-y-2">
+                    <p class="font-bold text-slate-200">
+                        Instituto Federal de Educação, Ciência e Tecnologia de Alagoas (IFAL)
+                    </p>
+                    <p>
+                        <strong>Equipe Desenvolvedora:</strong> Adriely Rauane Soares da Silva &bull; Ana Luiza Barbosa da Silva Mariano &bull; Francyne Gabrielle Sotero da Silva &bull; Maria Júlia Tenória Vieira &bull; Rayssa da Silva Alves
+                    </p>
+                    <p class="text-[11px] text-slate-500">
+                        Etapas 3 e 4 &bull; Arquitetura Cliente-Servidor &bull; Gestão Ágil, Git &amp; Qualidade de Software
+                    </p>
+                </div>
+            </div>
+
+            <div class="pt-6 flex flex-col sm:flex-row justify-between items-center text-xs text-slate-500 gap-3">
+                <span>&copy; 2026 EcoCiclo. Todos os direitos reservados.</span>
+                <div class="flex items-center gap-4">
+                    <span class="text-brand-400 font-semibold"><i class="fa-solid fa-shield-halved"></i> Conforme PNRS (Lei 12.305/2010)</span>
+                    <a href="#" onclick="window.scrollTo({top:0, behavior:'smooth'}); return false;" class="text-slate-400 hover:text-white transition">Voltar ao topo <i class="fa-solid fa-arrow-up ml-1"></i></a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- MODAL: FINALIZAR ORDEM DE SERVIÇO COM FOTOS ANTES E DEPOIS (EMPRESA DE COLETA) -->
+    <div id="modalFinalizarOS" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden relative max-h-[90vh] overflow-y-auto">
+            <div class="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 flex justify-between items-center">
+                <div>
+                    <span class="text-xs font-bold text-amber-400 uppercase tracking-wider block">Comprovação de Atendimento em Campo</span>
+                    <h3 class="text-xl font-bold font-display" id="modalOSTitle">Finalizar O.S. #2026-8941</h3>
+                </div>
+                <button onclick="closeModalFinalizarOS()" class="text-slate-400 hover:text-white p-1 text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form id="formFinalizarOS" onsubmit="handleSalvarComprovanteOS(event)" class="p-6 space-y-5">
+                <input type="hidden" id="modalOSId">
+
+                <!-- Before and After Photos -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="border border-slate-200 rounded-2xl p-4 bg-slate-50">
+                        <span class="text-xs font-bold text-slate-700 block mb-2 flex items-center gap-1.5">
+                            <i class="fa-solid fa-camera text-red-500"></i> Foto do Antes (Descarte)
+                        </span>
+                        <img id="modalOSFotoAntes" src="" alt="Antes" class="w-full h-36 object-cover rounded-xl border border-slate-300">
+                    </div>
+
+                    <div class="border-2 border-dashed border-brand-500 rounded-2xl p-4 bg-brand-50/50">
+                        <span class="text-xs font-bold text-brand-900 block mb-2 flex items-center gap-1.5">
+                            <i class="fa-solid fa-camera text-brand-600"></i> Foto do Depois (Local Limpo)
+                        </span>
+                        <div id="modalOSDepoisPlaceholder" class="h-36 rounded-xl bg-white border border-dashed border-brand-300 flex flex-col items-center justify-center text-center p-2 cursor-pointer" onclick="simulateFotoDepois()">
+                            <i class="fa-solid fa-cloud-arrow-up text-2xl text-brand-600 mb-1"></i>
+                            <span class="text-xs font-bold text-brand-800">Clique para anexar Foto do Depois</span>
+                            <span class="text-[10px] text-slate-400">ou usar foto de comprovação simulada</span>
+                        </div>
+                        <img id="modalOSFotoDepois" src="" alt="Depois" class="w-full h-36 object-cover rounded-xl border border-brand-500 hidden">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Peso Real Coletado (kg)</label>
+                        <input type="number" id="modalOSPeso" min="1" step="0.5" value="380" required class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Destinação Final</label>
+                        <select id="modalOSDestino" required class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                            <option value="CTR Maceió (Aterro Sanitário)">CTR Maceió (Aterro Sanitário)</option>
+                            <option value="Cooperativa Renascer (Recicláveis)">Cooperativa Renascer (Recicláveis)</option>
+                            <option value="Ecoponto Jatiúca">Ecoponto Jatiúca</option>
+                            <option value="Usina de Compostagem Municipal">Usina de Compostagem Municipal</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Encarregado da Equipe</label>
+                        <input type="text" id="modalOSEncarregado" value="Carlos Eduardo (Matrícula #4812)" required class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Parecer Operacional</label>
+                    <textarea id="modalOSObs" rows="2" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm" placeholder="Ex: Área totalmente varrida, higienizada e cal hidratada aplicada no local."></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeModalFinalizarOS()" class="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 text-xs font-bold hover:bg-slate-50 transition">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center gap-2">
+                        <i class="fa-solid fa-stamp"></i> Salvar Comprovante &amp; Finalizar O.S.
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: VISUALIZAR COMPROVANTE DE EXECUÇÃO (PARA O CIDADÃO) -->
+    <div id="modalVerComprovante" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden relative">
+            <div class="bg-gradient-to-r from-brand-900 to-emerald-900 text-white p-6 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-brand-500/30 text-brand-300 flex items-center justify-center font-bold text-lg">
+                        <i class="fa-solid fa-certificate"></i>
+                    </div>
+                    <div>
+                        <span class="text-xs font-bold text-brand-300 uppercase tracking-wider block">Certificado de Atendimento</span>
+                        <h3 class="text-lg font-bold font-display" id="certTitulo">Atendimento Concluído</h3>
+                    </div>
+                </div>
+                <button onclick="closeModalVerComprovante()" class="text-slate-300 hover:text-white p-1 text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-6">
+                <!-- Comparison Carousel / Side by Side -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="border border-slate-200 rounded-2xl p-3 bg-slate-50 text-center">
+                        <span class="text-xs font-bold text-red-600 block mb-1.5"><i class="fa-solid fa-triangle-exclamation"></i> Foto do Antes (Descarte)</span>
+                        <img id="certFotoAntes" src="" alt="Antes" class="w-full h-40 object-cover rounded-xl border border-red-200">
+                    </div>
+                    <div class="border border-brand-200 rounded-2xl p-3 bg-brand-50/50 text-center">
+                        <span class="text-xs font-bold text-emerald-700 block mb-1.5"><i class="fa-solid fa-circle-check"></i> Foto do Depois (Limpo)</span>
+                        <img id="certFotoDepois" src="" alt="Depois" class="w-full h-40 object-cover rounded-xl border border-emerald-300">
+                    </div>
+                </div>
+
+                <!-- Resolution Specs -->
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 text-xs space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Protocolo da Demanda:</span>
+                        <strong class="text-slate-800" id="certProtocolo">#DEN-2026-8941</strong>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Data e Hora de Conclusão:</span>
+                        <strong class="text-slate-800" id="certDataConclusao">16/11/2026 às 14:32</strong>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Massa de Resíduo Recolhida:</span>
+                        <strong class="text-brand-700" id="certPeso">450 kg</strong>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Destinação Ambientalmente Adequada:</span>
+                        <strong class="text-slate-800" id="certDestino">CTR Maceió / Usina Licenciada</strong>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Encarregado Responsável:</span>
+                        <strong class="text-slate-800" id="certEncarregado">Equipe Alpha &bull; EcoLimp</strong>
+                    </div>
+                </div>
+
+                <div class="flex justify-end">
+                    <button onclick="closeModalVerComprovante()" class="bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold px-6 py-2.5 rounded-xl transition">
+                        Fechar Comprovante
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CADASTRAR NOVO ECOPONTO (RF07 PREFEITURA) -->
+    <div id="modalNovoEcoponto" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden relative">
+            <div class="bg-gov-900 text-white p-6 flex justify-between items-center">
+                <div>
+                    <span class="text-xs font-bold text-sky-400 uppercase tracking-wider block">Gestão Territorial de Ecopontos</span>
+                    <h3 class="text-lg font-bold font-display">Cadastrar Novo Ecoponto Municipal</h3>
+                </div>
+                <button onclick="closeModalNovoEcoponto()" class="text-slate-400 hover:text-white p-1 text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form onsubmit="handleCadastrarNovoEcoponto(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Nome da Unidade PEV</label>
+                    <input type="text" id="novoEcoNome" required placeholder="Ex: Ecoponto Mangabeiras" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Logradouro e Número</label>
+                        <input type="text" id="novoEcoEndereco" required placeholder="Av. Comendador Gustavo Paiva, 1400" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Bairro</label>
+                        <input type="text" id="novoEcoBairro" required placeholder="Mangabeiras" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Latitude</label>
+                        <input type="text" id="novoEcoLat" required value="-9.6480" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Longitude</label>
+                        <input type="text" id="novoEcoLng" required value="-35.7110" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Materiais Aceitos (separados por vírgula)</label>
+                    <input type="text" id="novoEcoMateriais" required value="Entulho até 1m³, Móveis, Poda, Recicláveis, Óleo" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Horário de Funcionamento</label>
+                    <input type="text" id="novoEcoHorario" required value="Seg a Sáb: 07h às 18h" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs">
+                </div>
+
+                <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                    <button type="button" onclick="closeModalNovoEcoponto()" class="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 text-xs font-bold hover:bg-slate-50 transition">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="bg-gov-700 hover:bg-gov-600 text-white text-xs font-bold px-6 py-2.5 rounded-xl transition">
+                        Cadastrar Unidade
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- APPLICATION SCRIPTS (REACTIVITY, MAP, CHARTS & STORAGE) -->
+    <script>
+        // ==============================================================
+        // 1. MODEL STATE & INITIAL SEED DATA (Maceió - AL)
+        // ==============================================================
+        const INITIAL_ECOPONTOS = [
+            { id: 1, nome: "Ecoponto Pajuçara", endereco: "Av. Dr. Antônio Gouveia, 450", bairro: "Pajuçara", lat: -9.6698, lng: -35.7175, materiais: "Recicláveis, Vidro, Metais, Óleo de Cozinha", horario: "Seg a Sáb: 07h às 17h", tipoTag: "reciclavel" },
+            { id: 2, nome: "Ecoponto Jatiúca", endereco: "Av. Álvaro Otacílio, 1250", bairro: "Jatiúca", lat: -9.6508, lng: -35.7032, materiais: "Entulho, Móveis, Poda, Eletrônicos", horario: "Seg a Sex: 08h às 18h, Sáb: 08h às 14h", tipoTag: "entulho" },
+            { id: 3, nome: "Ecoponto Centro - Praça Sinimbu", endereco: "Rua Barão de Penedo, 120", bairro: "Centro", lat: -9.6658, lng: -35.7353, materiais: "Papelão, Plásticos, Vidro, Pilhas", horario: "Seg a Sex: 08h às 17h", tipoTag: "reciclavel" },
+            { id: 4, nome: "Ecoponto Farol - Mirante", endereco: "Av. Fernandes Lima, 1800", bairro: "Farol", lat: -9.6480, lng: -35.7360, materiais: "Móveis, Madeiras, Eletrônicos, Recicláveis", horario: "Seg a Sáb: 07h às 19h", tipoTag: "eletronicos" },
+            { id: 5, nome: "Ecoponto Jacintinho", endereco: "Av. Cleto Campelo, 300", bairro: "Jacintinho", lat: -9.6410, lng: -35.7230, materiais: "Entulho até 1m³, Poda, Móveis, Sucatas", horario: "Seg a Sáb: 08h às 17h", tipoTag: "entulho" },
+            { id: 6, nome: "Ecoponto Benedito Bentes", endereco: "Av. Cachoeira do Meirim, 780", bairro: "Benedito Bentes", lat: -9.5780, lng: -35.7480, materiais: "Entulho ensacado, Eletrodomésticos, Poda, Recicláveis", horario: "Seg a Sáb: 07h às 17h", tipoTag: "entulho" }
+        ];
+
+        const INITIAL_CRONOGRAMA = {
+            "Pajuçara": {
+                domiciliar: "Segundas, Quartas e Sextas",
+                turnoDom: "Noturno (a partir das 19h)",
+                seletiva: "Terças e Quintas",
+                turnoSel: "Matutino (08h às 12h)",
+                cataTreco: "1º e 3º Sábado de cada mês",
+                alerta: "Hoje há coleta seletiva na Pajuçara! Deixe os sacos verdes na lixeira até 08h."
+            },
+            "Ponta Verde": {
+                domiciliar: "Segundas, Quartas e Sextas",
+                turnoDom: "Noturno (a partir das 19h)",
+                seletiva: "Terças e Quintas",
+                turnoSel: "Vespertino (13h às 17h)",
+                cataTreco: "1º e 3º Sábado de cada mês",
+                alerta: "Cata-Treco programado para o próximo sábado."
+            },
+            "Jatiúca": {
+                domiciliar: "Terças, Quintas e Sábados",
+                turnoDom: "Noturno (a partir das 19h)",
+                seletiva: "Quartas e Sextas",
+                turnoSel: "Matutino (08h às 12h)",
+                cataTreco: "2º e 4º Sábado de cada mês",
+                alerta: "Coleta domiciliar regular ativa nesta noite."
+            },
+            "Centro": {
+                domiciliar: "Diariamente (Seg a Sáb)",
+                turnoDom: "Noturno (a partir das 20h)",
+                seletiva: "Segundas, Quartas e Sextas",
+                turnoSel: "Matutino (07h às 11h)",
+                cataTreco: "Todo Sábado",
+                alerta: "Atenção lojistas: descarte de caixas de papelão até 20h."
+            },
+            "Farol": {
+                domiciliar: "Segundas, Quartas e Sextas",
+                turnoDom: "Diurno (a partir das 07h)",
+                seletiva: "Terças e Quintas",
+                turnoSel: "Matutino (08h às 12h)",
+                cataTreco: "2º Sábado de cada mês",
+                alerta: "Descarte de poda deve ser agendado via formulário do EcoCiclo."
+            },
+            "Jacintinho": {
+                domiciliar: "Terças, Quintas e Sábados",
+                turnoDom: "Diurno (a partir das 07h)",
+                seletiva: "Quartas-feiras",
+                turnoSel: "Matutino (08h às 12h)",
+                cataTreco: "3º Sábado de cada mês",
+                alerta: "Ecoponto Jacintinho aberto hoje até as 17h para descarte de entulho."
+            },
+            "Benedito Bentes": {
+                domiciliar: "Segundas, Quartas e Sextas",
+                turnoDom: "Diurno (a partir das 07h)",
+                seletiva: "Sábados",
+                turnoSel: "Matutino (08h às 12h)",
+                cataTreco: "4º Sábado de cada mês",
+                alerta: "Mutirão de recolhimento de volumosos neste fim de semana."
+            }
+        };
+
+        const INITIAL_DEMANDAS = [
+            {
+                id: 101,
+                protocolo: "DEN-2026-8941",
+                tipo: "denuncia",
+                titulo: "Descarte de entulho e sofás em calçada",
+                solicitante: "Ana Luiza Silva",
+                endereco: "Rua Barão de Penedo, 120 - Centro",
+                bairro: "Centro",
+                lat: -9.6658,
+                lng: -35.7353,
+                material: "Entulho e Móveis",
+                prioridade: "alta",
+                status: "concluida",
+                dataAbertura: "16/11/2026 às 08:30",
+                dataConclusao: "16/11/2026 às 14:15",
+                fotoAntes: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=400&q=80",
+                fotoDepois: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80",
+                pesoKg: 450,
+                veiculo: "Cata-Treco 02",
+                encarregado: "Equipe Alpha (Carlos Eduardo)",
+                destino: "CTR Maceió / Usina Licenciada",
+                parecer: "Local 100% desobstruído, varrido e higienizado com cal protetora."
+            },
+            {
+                id: 102,
+                protocolo: "VOL-2026-3390",
+                tipo: "volumoso",
+                titulo: "Agendamento: Sofá 3 lugares e colchão",
+                solicitante: "Marcos Vinícius",
+                endereco: "Av. Álvaro Otacílio, 800 - Jatiúca",
+                bairro: "Jatiúca",
+                lat: -9.6508,
+                lng: -35.7032,
+                material: "Sofá / Estofados",
+                prioridade: "media",
+                status: "em_rota",
+                dataAbertura: "16/11/2026 às 10:15",
+                dataConclusao: null,
+                fotoAntes: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=400&q=80",
+                fotoDepois: null,
+                pesoKg: null,
+                veiculo: "Caminhão 04",
+                encarregado: "Equipe Beta",
+                destino: "Cooperativa Renascer",
+                parecer: "Caminhão em deslocamento estimado para as 15h."
+            },
+            {
+                id: 103,
+                protocolo: "DEN-2026-9102",
+                tipo: "denuncia",
+                titulo: "Descarte irregular de restos de poda e sacos",
+                solicitante: "Clara Mendonça",
+                endereco: "Rua Cleto Campelo, 45 - Jacintinho",
+                bairro: "Jacintinho",
+                lat: -9.6410,
+                lng: -35.7230,
+                material: "Poda e Resíduos",
+                prioridade: "alta",
+                status: "pendente",
+                dataAbertura: "16/11/2026 às 11:40",
+                dataConclusao: null,
+                fotoAntes: "https://images.unsplash.com/photo-1618477461853-cf6ed80faba5?auto=format&fit=crop&w=400&q=80",
+                fotoDepois: null,
+                pesoKg: null,
+                veiculo: null,
+                encarregado: null,
+                destino: null,
+                parecer: "Aguardando despacho de caçamba compactadora."
+            }
+        ];
+
+        // Global State variables
+        let currentActor = 'cidadao'; // 'cidadao' | 'coletora' | 'prefeitura'
+        let ecopontos = JSON.parse(localStorage.getItem('ecociclo_ecopontos')) || INITIAL_ECOPONTOS;
+        let demandas = JSON.parse(localStorage.getItem('ecociclo_demandas')) || INITIAL_DEMANDAS;
+        let leafletMap = null;
+        let mapMarkers = [];
+
+        // Save initial state if fresh
+        if (!localStorage.getItem('ecociclo_ecopontos')) localStorage.setItem('ecociclo_ecopontos', JSON.stringify(ecopontos));
+        if (!localStorage.getItem('ecociclo_demandas')) localStorage.setItem('ecociclo_demandas', JSON.stringify(demandas));
+
+        // ==============================================================
+        // 2. ACTOR & ROLE MANAGEMENT
+        // ==============================================================
+        function setActor(actor) {
+            currentActor = actor;
+
+            // Highlight switcher buttons
+            document.querySelectorAll('.role-btn').forEach(btn => {
+                btn.className = "role-btn px-3 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 text-slate-400 hover:text-white";
+            });
+            const activeBtn = document.getElementById(`roleBtn-${actor}`);
+            if (activeBtn) {
+                if (actor === 'cidadao') activeBtn.className = "role-btn px-3 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 bg-brand-600 text-white shadow-sm";
+                else if (actor === 'coletora') activeBtn.className = "role-btn px-3 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 bg-amber-500 text-slate-950 shadow-sm";
+                else if (actor === 'prefeitura') activeBtn.className = "role-btn px-3 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 bg-sky-600 text-white shadow-sm";
+            }
+
+            // Hide/Show actor main sections
+            document.querySelectorAll('.actor-section').forEach(sec => sec.classList.add('hidden'));
+            const targetSection = document.getElementById(`section-actor-${actor}`);
+            if (targetSection) targetSection.classList.remove('hidden');
+
+            // Update Header User Profile badge
+            const actorAvatar = document.getElementById('actorAvatar');
+            const actorName = document.getElementById('actorName');
+            const actorBadgeRole = document.getElementById('actorBadgeRole');
+
+            if (actor === 'cidadao') {
+                actorAvatar.className = "w-7 h-7 rounded-lg bg-brand-600 text-white flex items-center justify-center font-bold text-xs";
+                actorAvatar.innerText = "A";
+                actorName.innerText = "Ana Luiza Silva";
+                actorBadgeRole.innerText = "Cidadão Morador";
+                actorBadgeRole.className = "text-[10px] text-brand-700 font-semibold uppercase tracking-wider";
+                navigateTo('cid-home');
+            } else if (actor === 'coletora') {
+                actorAvatar.className = "w-7 h-7 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-bold text-xs";
+                actorAvatar.innerText = "E";
+                actorName.innerText = "EcoLimp Maceió";
+                actorBadgeRole.innerText = "Empresa Coletora (O.S.)";
+                actorBadgeRole.className = "text-[10px] text-amber-600 font-semibold uppercase tracking-wider";
+                renderColetoraTable();
+            } else if (actor === 'prefeitura') {
+                actorAvatar.className = "w-7 h-7 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold text-xs";
+                actorAvatar.innerText = "P";
+                actorName.innerText = "Prefeitura de Maceió";
+                actorBadgeRole.innerText = "Gestão Pública (SLA)";
+                actorBadgeRole.className = "text-[10px] text-sky-600 font-semibold uppercase tracking-wider";
+                renderPrefeituraDashboard();
+            }
+
+            updateNavbarLinks();
+            updatePendingBadge();
+            showToast(`Visão alterada para: ${actorBadgeRole.innerText}`, 'info');
+        }
+
+        function updateNavbarLinks() {
+            const nav = document.getElementById('navbarLinks');
+            const mobileNav = document.getElementById('mobileNavbarLinks');
+
+            let html = '';
+            let mobHtml = '';
+
+            if (currentActor === 'cidadao') {
+                html = `
+                    <button onclick="navigateTo('cid-home')" class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-brand-700 hover:bg-slate-100 transition">Início</button>
+                    <button onclick="navigateTo('cid-denuncia')" class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-red-600 hover:bg-red-50 transition"><i class="fa-solid fa-camera text-red-500 mr-1"></i> Fazer Denúncia</button>
+                    <button onclick="navigateTo('cid-volumosos')" class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-brand-700 hover:bg-brand-50 transition"><i class="fa-solid fa-couch text-brand-600 mr-1"></i> Agendar Volumoso</button>
+                    <button onclick="navigateTo('cid-mapa')" class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition"><i class="fa-solid fa-map-location-dot text-blue-500 mr-1"></i> Ecopontos</button>
+                    <button onclick="navigateTo('cid-cronograma')" class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-purple-700 hover:bg-purple-50 transition"><i class="fa-solid fa-calendar-days text-purple-500 mr-1"></i> Cronograma</button>
+                    <button onclick="navigateTo('cid-demandas')" class="px-3 py-2 rounded-xl text-xs font-semibold bg-brand-50 text-brand-800 hover:bg-brand-100 transition"><i class="fa-solid fa-clipboard-check text-brand-600 mr-1"></i> Minhas Demandas</button>
+                `;
+                mobHtml = html;
+            } else if (currentActor === 'coletora') {
+                html = `
+                    <span class="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                        <i class="fa-solid fa-truck mr-1"></i> Fila Operacional Ativa
+                    </span>
+                    <button onclick="renderColetoraTable()" class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100"><i class="fa-solid fa-arrows-rotate mr-1"></i> Recarregar O.S.</button>
+                `;
+                mobHtml = html;
+            } else if (currentActor === 'prefeitura') {
+                html = `
+                    <span class="px-3 py-1.5 rounded-xl text-xs font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                        <i class="fa-solid fa-chart-line mr-1"></i> Indicadores &amp; SLA
+                    </span>
+                    <button onclick="openModalNovoEcoponto()" class="px-3 py-2 rounded-xl text-xs font-semibold text-gov-700 hover:bg-gov-50"><i class="fa-solid fa-plus mr-1"></i> Novo Ecoponto</button>
+                `;
+                mobHtml = html;
+            }
+
+            nav.innerHTML = html;
+            mobileNav.innerHTML = mobHtml;
+        }
+
+        function updatePendingBadge() {
+            const count = demandas.filter(d => d.status === 'pendente' || d.status === 'em_rota').length;
+            const badge = document.getElementById('badgePendingOS');
+            if (badge) badge.innerText = count;
+        }
+
+        // ==============================================================
+        // 3. NAVIGATION BETWEEN VIEWS (CIDADÃO)
+        // ==============================================================
+        function navigateTo(viewId) {
+            if (currentActor !== 'cidadao') {
+                setActor('cidadao');
+            }
+
+            document.querySelectorAll('#section-actor-cidadao .page-view').forEach(view => {
+                view.classList.add('hidden');
+            });
+
+            const target = document.getElementById(`view-${viewId}`);
+            if (target) {
+                target.classList.remove('hidden');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            if (viewId === 'cid-mapa') {
+                setTimeout(initLeafletMap, 150);
+            }
+            if (viewId === 'cid-cronograma') {
+                renderCronogramaDetails();
+            }
+            if (viewId === 'cid-demandas') {
+                renderMinhasDemandas();
+            }
+        }
+
+        // ==============================================================
+        // 4. GPS CAPTURE & PHOTO HANDLING (DENÚNCIA)
+        // ==============================================================
+        let uploadedPhotoBase64 = null;
+
+        function captureGPSCoordinates() {
+            if ("geolocation" in navigator) {
+                showToast("Buscando satélites de GPS com alta precisão...", "info");
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude.toFixed(6);
+                        const lng = position.coords.longitude.toFixed(6);
+                        document.getElementById('denLatitude').value = lat;
+                        document.getElementById('denLongitude').value = lng;
+                        showToast(`GPS capturado com sucesso: ${lat}, ${lng}`);
+                    },
+                    (error) => {
+                        // Fallback em Maceió
+                        document.getElementById('denLatitude').value = "-9.665800";
+                        document.getElementById('denLongitude').value = "-35.735300";
+                        showToast("Sinal GPS indisponível no navegador. Posição central de Maceió aplicada.", "warning");
+                    },
+                    { enableHighAccuracy: true, timeout: 6000 }
+                );
+            } else {
+                showToast("Geolocalização não suportada no seu dispositivo.", "warning");
+            }
+        }
+
+        function handlePhotoUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    uploadedPhotoBase64 = evt.target.result;
+                    displayPhotoPreview(uploadedPhotoBase64);
+                    showToast("Fotografia anexada com sucesso!");
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function setPresetPhoto(type) {
+            if (type === 'entulho') {
+                uploadedPhotoBase64 = "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=600&q=80";
+                document.getElementById('denTipoMaterial').value = "Entulho e Resíduos de Construção";
+                document.getElementById('denDescricao').value = "Acúmulo de cerca de 10 sacos de entulho e tijolos obstruindo a calçada em frente à praça.";
+            } else if (type === 'sofa') {
+                uploadedPhotoBase64 = "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=600&q=80";
+                document.getElementById('denTipoMaterial').value = "Móveis Abandonados e Volumosos";
+                document.getElementById('denDescricao').value = "Sofá velho descartado próximo ao poste de iluminação pública.";
+            } else if (type === 'lixo') {
+                uploadedPhotoBase64 = "https://images.unsplash.com/photo-1618477461853-cf6ed80faba5?auto=format&fit=crop&w=600&q=80";
+                document.getElementById('denTipoMaterial').value = "Lixo Doméstico em Área Pública";
+                document.getElementById('denDescricao').value = "Descarte clandestino frequente em terreno baldio, com focos de insetos.";
+            }
+            displayPhotoPreview(uploadedPhotoBase64);
+            showToast("Foto de exemplo anexada!");
+        }
+
+        function displayPhotoPreview(src) {
+            document.getElementById('photoPlaceholder').classList.add('hidden');
+            document.getElementById('photoPreviewContainer').classList.remove('hidden');
+            document.getElementById('photoPreviewImg').src = src;
+        }
+
+        function clearPhotoUpload() {
+            uploadedPhotoBase64 = null;
+            document.getElementById('photoPlaceholder').classList.remove('hidden');
+            document.getElementById('photoPreviewContainer').classList.add('hidden');
+            document.getElementById('photoPreviewImg').src = '';
+            document.getElementById('denPhotoInput').value = '';
+        }
+
+        function handleDenunciaSubmit(e) {
+            e.preventDefault();
+
+            const fotoFinal = uploadedPhotoBase64 || "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=600&q=80";
+            const randomCode = Math.floor(1000 + Math.random() * 9000);
+            const protocolo = `DEN-2026-${randomCode}`;
+
+            const novaDemanda = {
+                id: Date.now(),
+                protocolo: protocolo,
+                tipo: "denuncia",
+                titulo: document.getElementById('denTipoMaterial').value,
+                solicitante: "Ana Luiza Silva",
+                endereco: document.getElementById('denEndereco').value,
+                bairro: document.getElementById('denBairro').value,
+                lat: parseFloat(document.getElementById('denLatitude').value) || -9.6658,
+                lng: parseFloat(document.getElementById('denLongitude').value) || -35.7353,
+                material: document.getElementById('denTipoMaterial').value,
+                prioridade: document.getElementById('denCheckDengue').checked ? "alta" : "media",
+                status: "pendente",
+                dataAbertura: new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                dataConclusao: null,
+                fotoAntes: fotoFinal,
+                fotoDepois: null,
+                pesoKg: null,
+                veiculo: null,
+                encarregado: null,
+                destino: null,
+                parecer: document.getElementById('denDescricao').value
+            };
+
+            demandas.unshift(novaDemanda);
+            localStorage.setItem('ecociclo_demandas', JSON.stringify(demandas));
+
+            showToast(`Denúncia transmitida com sucesso! Protocolo #${protocolo}`);
+            document.getElementById('denunciaForm').reset();
+            clearPhotoUpload();
+            updatePendingBadge();
+            navigateTo('cid-demandas');
+        }
+
+        // ==============================================================
+        // 5. AGENDAMENTO DE VOLUMOSOS
+        // ==============================================================
+        function handleVolumosoSubmit(e) {
+            e.preventDefault();
+
+            const randomCode = Math.floor(1000 + Math.random() * 9000);
+            const protocolo = `VOL-2026-${randomCode}`;
+            const categoria = document.getElementById('volCategoria').value;
+            const qtd = document.getElementById('volQuantidade').value;
+
+            const novoAgendamento = {
+                id: Date.now(),
+                protocolo: protocolo,
+                tipo: "volumoso",
+                titulo: `Agendamento: ${qtd}x ${categoria}`,
+                solicitante: "Ana Luiza Silva",
+                endereco: document.getElementById('volEndereco').value,
+                bairro: document.getElementById('volBairro').value,
+                lat: -9.6508,
+                lng: -35.7032,
+                material: categoria,
+                prioridade: "media",
+                status: "pendente",
+                dataAbertura: new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                dataConclusao: null,
+                fotoAntes: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=400&q=80",
+                fotoDepois: null,
+                pesoKg: null,
+                veiculo: null,
+                encarregado: null,
+                destino: "Cooperativa de Reciclagem",
+                parecer: `Data de retirada solicitada: ${document.getElementById('volData').value} (${document.getElementById('volTurno').value}). ${document.getElementById('volObs').value}`
+            };
+
+            demandas.unshift(novoAgendamento);
+            localStorage.setItem('ecociclo_demandas', JSON.stringify(demandas));
+
+            showToast(`Agendamento confirmado com sucesso! Protocolo #${protocolo}`);
+            document.getElementById('volumosoForm').reset();
+            updatePendingBadge();
+            navigateTo('cid-demandas');
+        }
+
+        // ==============================================================
+        // 6. LEAFLET MAP & ECOPONTOS (RF03)
+        // ==============================================================
+        function initLeafletMap() {
+            if (leafletMap) {
+                leafletMap.invalidateSize();
+                return;
+            }
+
+            // Centro em Maceió
+            leafletMap = L.map('mapEcopontos').setView([-9.6600, -35.7200], 13);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(leafletMap);
+
+            renderMapMarkers();
+            renderEcopontosSidebar();
+        }
+
+        function renderMapMarkers(filter = 'todos') {
+            if (!leafletMap) return;
+
+            // Clear old markers
+            mapMarkers.forEach(m => leafletMap.removeLayer(m));
+            mapMarkers = [];
+
+            const filtered = filter === 'todos' ? ecopontos : ecopontos.filter(e => e.tipoTag === filter);
+
+            filtered.forEach(eco => {
+                const marker = L.marker([eco.lat, eco.lng]).addTo(leafletMap);
+                
+                const popupContent = `
+                    <div class="text-xs p-1 space-y-1">
+                        <strong class="text-sm font-bold text-slate-900 block">${eco.nome}</strong>
+                        <p class="text-slate-600">${eco.endereco} - ${eco.bairro}</p>
+                        <p class="text-brand-700 font-semibold"><strong>Aceita:</strong> ${eco.materiais}</p>
+                        <p class="text-slate-500 font-mono text-[10px]">${eco.horario}</p>
+                        <div class="pt-2">
+                            <a href="https://maps.google.com/?q=${eco.lat},${eco.lng}" target="_blank" class="inline-block bg-brand-600 hover:bg-brand-700 text-white font-bold px-3 py-1 rounded-md text-[11px]">
+                                Traçar Rota no Waze/Maps &rarr;
+                            </a>
+                        </div>
+                    </div>
+                `;
+                marker.bindPopup(popupContent);
+                mapMarkers.push(marker);
+            });
+        }
+
+        function filterMapByMaterial(type) {
+            document.querySelectorAll('.map-filter-btn').forEach(btn => {
+                btn.className = "map-filter-btn px-3 py-1.5 rounded-xl text-xs font-medium bg-white text-slate-600 border border-slate-200 hover:bg-slate-50";
+            });
+            const activeBtn = document.getElementById(`filterMap-${type}`);
+            if (activeBtn) activeBtn.className = "map-filter-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-brand-600 text-white shadow-xs";
+
+            renderMapMarkers(type);
+            renderEcopontosSidebar(type);
+        }
+
+        function renderEcopontosSidebar(filter = 'todos') {
+            const container = document.getElementById('ecopontosListSidebar');
+            if (!container) return;
+
+            const filtered = filter === 'todos' ? ecopontos : ecopontos.filter(e => e.tipoTag === filter);
+            container.innerHTML = '';
+
+            filtered.forEach(eco => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-brand-500 transition cursor-pointer space-y-2";
+                card.onclick = () => {
+                    if (leafletMap) {
+                        leafletMap.flyTo([eco.lat, eco.lng], 15, { duration: 1.2 });
+                        // open matching marker
+                        const match = mapMarkers.find(m => m.getLatLng().lat === eco.lat);
+                        if (match) match.openPopup();
+                    }
+                };
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <h4 class="font-bold text-sm text-slate-900">${eco.nome}</h4>
+                        <span class="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">Aberto</span>
+                    </div>
+                    <p class="text-xs text-slate-500"><i class="fa-solid fa-location-dot text-slate-400 mr-1"></i> ${eco.endereco} - ${eco.bairro}</p>
+                    <p class="text-[11px] text-brand-800 bg-brand-50/80 p-2 rounded-xl"><strong>Materiais:</strong> ${eco.materiais}</p>
+                    <span class="text-[10px] text-slate-400 block"><i class="fa-solid fa-clock mr-1"></i> ${eco.horario}</span>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // ==============================================================
+        // 7. CRONOGRAMA DE COLETA POR BAIRRO
+        // ==============================================================
+        function renderCronogramaDetails() {
+            const bairro = document.getElementById('selectCronogramaBairro').value;
+            const data = INITIAL_CRONOGRAMA[bairro] || INITIAL_CRONOGRAMA["Pajuçara"];
+            const container = document.getElementById('cronogramaCardsContainer');
+
+            container.innerHTML = `
+                <!-- Alert Box -->
+                <div class="bg-gradient-to-r from-purple-900 to-indigo-950 text-white p-5 rounded-3xl border border-purple-800 shadow-lg flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-300 flex items-center justify-center font-bold text-2xl shrink-0">
+                        <i class="fa-solid fa-bell"></i>
+                    </div>
+                    <div>
+                        <span class="text-xs font-bold text-purple-300 uppercase tracking-wider block">Status da Rota em ${bairro}</span>
+                        <p class="text-sm font-semibold text-slate-100">${data.alerta}</p>
+                    </div>
+                </div>
+
+                <!-- 3 Modes of Collection -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between space-y-4">
+                        <div>
+                            <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-xl mb-3">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </div>
+                            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Coleta Domiciliar Comum</span>
+                            <h3 class="text-lg font-extrabold text-slate-900 mt-1">${data.domiciliar}</h3>
+                        </div>
+                        <div class="pt-4 border-t border-slate-100">
+                            <span class="text-xs text-slate-500 font-medium"><i class="fa-solid fa-clock text-slate-400 mr-1"></i> Turno: <strong>${data.turnoDom}</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-3xl border border-brand-200 shadow-sm shadow-brand-50 flex flex-col justify-between space-y-4">
+                        <div>
+                            <div class="w-12 h-12 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-xl mb-3">
+                                <i class="fa-solid fa-recycle"></i>
+                            </div>
+                            <span class="text-xs font-bold uppercase tracking-wider text-brand-700">Coleta Seletiva Porta a Porta</span>
+                            <h3 class="text-lg font-extrabold text-slate-900 mt-1">${data.seletiva}</h3>
+                        </div>
+                        <div class="pt-4 border-t border-brand-100">
+                            <span class="text-xs text-brand-800 font-medium"><i class="fa-solid fa-clock text-brand-600 mr-1"></i> Turno: <strong>${data.turnoSel}</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between space-y-4">
+                        <div>
+                            <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xl mb-3">
+                                <i class="fa-solid fa-truck-pickup"></i>
+                            </div>
+                            <span class="text-xs font-bold uppercase tracking-wider text-amber-700">Caminhão Cata-Treco</span>
+                            <h3 class="text-lg font-extrabold text-slate-900 mt-1">${data.cataTreco}</h3>
+                        </div>
+                        <div class="pt-4 border-t border-slate-100">
+                            <span class="text-xs text-slate-500 font-medium"><i class="fa-solid fa-calendar-check text-amber-600 mr-1"></i> Agendamento prévio liberado</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ==============================================================
+        // 8. MINHAS DEMANDAS & RASTREAMENTO VISUAL (CIDADÃO)
+        // ==============================================================
+        function renderMinhasDemandas() {
+            const container = document.getElementById('minhasDemandasContainer');
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            demandas.forEach(d => {
+                let badgeClass = '';
+                let statusText = '';
+                let step = 1;
+
+                if (d.status === 'pendente') {
+                    badgeClass = 'bg-amber-100 text-amber-800 border-amber-300';
+                    statusText = 'Em Triagem pela Prefeitura';
+                    step = 2;
+                } else if (d.status === 'em_rota') {
+                    badgeClass = 'bg-blue-100 text-blue-800 border-blue-300';
+                    statusText = 'Caminhão em Deslocamento';
+                    step = 3;
+                } else if (d.status === 'concluida') {
+                    badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+                    statusText = 'Concluído com Sucesso!';
+                    step = 4;
+                }
+
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-6";
+
+                card.innerHTML = `
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <span class="px-3 py-1 rounded-full text-xs font-bold border ${badgeClass}">
+                                ${statusText}
+                            </span>
+                            <strong class="font-mono text-xs text-slate-500">Protocolo #${d.protocolo}</strong>
+                        </div>
+                        <span class="text-xs text-slate-400"><i class="fa-solid fa-clock mr-1"></i> Abertura: ${d.dataAbertura}</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                        <!-- Info -->
+                        <div class="md:col-span-8 space-y-2">
+                            <h3 class="text-base font-bold text-slate-900">${d.titulo}</h3>
+                            <p class="text-xs text-slate-600"><i class="fa-solid fa-location-dot text-slate-400 mr-1"></i> ${d.endereco} - ${d.bairro}</p>
+                            <p class="text-xs text-slate-500"><strong>Detalhes:</strong> ${d.parecer || 'Sem observações adicionais.'}</p>
+                        </div>
+
+                        <!-- Action or Photo Button -->
+                        <div class="md:col-span-4 flex flex-col items-start md:items-end justify-center">
+                            ${d.status === 'concluida' ? `
+                                <button onclick="verComprovanteExecucao(${d.id})" class="bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition flex items-center gap-2">
+                                    <i class="fa-solid fa-certificate"></i> Ver Comprovante (Fotos Antes / Depois)
+                                </button>
+                            ` : `
+                                <span class="text-xs text-slate-500 bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl">
+                                    <i class="fa-solid fa-spinner animate-spin text-brand-600 mr-1.5"></i> Equipe atuando no protocolo
+                                </span>
+                            `}
+                        </div>
+                    </div>
+
+                    <!-- Step-by-Step Timeline -->
+                    <div class="pt-4 border-t border-slate-100">
+                        <div class="grid grid-cols-4 gap-2 text-center text-[11px] font-semibold">
+                            <div class="flex flex-col items-center">
+                                <div class="w-7 h-7 rounded-full ${step >= 1 ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-500'} flex items-center justify-center mb-1">
+                                    <i class="fa-solid fa-check text-xs"></i>
+                                </div>
+                                <span class="${step >= 1 ? 'text-brand-700' : 'text-slate-400'}">Registrado</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="w-7 h-7 rounded-full ${step >= 2 ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-500'} flex items-center justify-center mb-1">
+                                    <i class="fa-solid fa-check text-xs"></i>
+                                </div>
+                                <span class="${step >= 2 ? 'text-brand-700' : 'text-slate-400'}">Triagem Prefeitura</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="w-7 h-7 rounded-full ${step >= 3 ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-500'} flex items-center justify-center mb-1">
+                                    <i class="fa-solid fa-truck text-xs"></i>
+                                </div>
+                                <span class="${step >= 3 ? 'text-brand-700' : 'text-slate-400'}">Caminhão em Rota</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <div class="w-7 h-7 rounded-full ${step >= 4 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500'} flex items-center justify-center mb-1">
+                                    <i class="fa-solid fa-flag-checkered text-xs"></i>
+                                </div>
+                                <span class="${step >= 4 ? 'text-emerald-700 font-bold' : 'text-slate-400'}">Concluído &amp; Comprovado</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function verComprovanteExecucao(id) {
+            const item = demandas.find(d => d.id === id);
+            if (!item) return;
+
+            document.getElementById('certTitulo').innerText = item.titulo;
+            document.getElementById('certProtocolo').innerText = `#${item.protocolo}`;
+            document.getElementById('certDataConclusao').innerText = item.dataConclusao || '16/11/2026';
+            document.getElementById('certPeso').innerText = item.pesoKg ? `${item.pesoKg} kg recolhidos` : '420 kg recolhidos';
+            document.getElementById('certDestino').innerText = item.destino || 'CTR Maceió';
+            document.getElementById('certEncarregado').innerText = item.encarregado || 'Equipe Alpha';
+            document.getElementById('certFotoAntes').src = item.fotoAntes;
+            document.getElementById('certFotoDepois').src = item.fotoDepois || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80';
+
+            document.getElementById('modalVerComprovante').classList.remove('hidden');
+        }
+
+        function closeModalVerComprovante() {
+            document.getElementById('modalVerComprovante').classList.add('hidden');
+        }
+
+        // ==============================================================
+        // 9. EMPRESA DE COLETA (GESTÃO DE O.S. & COMPROVAÇÃO)
+        // ==============================================================
+        let osFilter = 'todas';
+
+        function renderColetoraTable() {
+            const tbody = document.getElementById('coletoraOSTableBody');
+            if (!tbody) return;
+
+            tbody.innerHTML = '';
+
+            // Update stats
+            const pendentes = demandas.filter(d => d.status === 'pendente').length;
+            const emRota = demandas.filter(d => d.status === 'em_rota').length;
+            const concluidas = demandas.filter(d => d.status === 'concluida').length;
+            
+            document.getElementById('osCountPendentes').innerText = pendentes;
+            document.getElementById('osCountEmRota').innerText = emRota;
+            document.getElementById('osCountConcluidas').innerText = concluidas;
+
+            const filtered = osFilter === 'todas' ? demandas :
+                             osFilter === 'pendentes' ? demandas.filter(d => d.status === 'pendente') :
+                             osFilter === 'em_rota' ? demandas.filter(d => d.status === 'em_rota') :
+                             demandas.filter(d => d.status === 'concluida');
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="px-5 py-8 text-center text-slate-400">Nenhuma Ordem de Serviço encontrada para o filtro selecionado.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(d => {
+                let prioBadge = d.prioridade === 'alta' ? '<span class="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full text-[10px]">Urgente</span>' : '<span class="bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full text-[10px]">Normal</span>';
+                let statusBadge = d.status === 'pendente' ? '<span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full text-[10px]">Pendente</span>' :
+                                  d.status === 'em_rota' ? '<span class="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full text-[10px]">Em Rota</span>' :
+                                  '<span class="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full text-[10px]">Concluída</span>';
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/80 transition";
+                tr.innerHTML = `
+                    <td class="px-5 py-4 font-mono font-bold text-slate-900">#${d.protocolo}</td>
+                    <td class="px-5 py-4">
+                        <strong class="text-slate-800 block">${d.solicitante}</strong>
+                        <span class="text-[11px] text-slate-400">${d.tipo === 'denuncia' ? '🚨 Denúncia Cidadão' : '🛋️ Cata-Treco Agendado'}</span>
+                    </td>
+                    <td class="px-5 py-4">
+                        <span class="text-slate-700 block">${d.endereco}</span>
+                        <span class="text-[10px] text-slate-400 font-mono">GPS: ${d.lat}, ${d.lng}</span>
+                    </td>
+                    <td class="px-5 py-4 font-semibold text-slate-700">${d.material}</td>
+                    <td class="px-5 py-4">${prioBadge}</td>
+                    <td class="px-5 py-4">${statusBadge}</td>
+                    <td class="px-5 py-4 text-right">
+                        ${d.status === 'pendente' ? `
+                            <button onclick="despacharOS(${d.id})" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition">
+                                <i class="fa-solid fa-truck-fast mr-1"></i> Despachar Equipe
+                            </button>
+                        ` : d.status === 'em_rota' ? `
+                            <button onclick="abrirModalFinalizarOS(${d.id})" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition shadow-sm">
+                                <i class="fa-solid fa-camera mr-1"></i> Comprovar &amp; Concluir
+                            </button>
+                        ` : `
+                            <button onclick="verComprovanteExecucao(${d.id})" class="text-brand-700 hover:underline font-bold text-xs">
+                                <i class="fa-solid fa-check-double mr-1"></i> Ver Comprovante
+                            </button>
+                        `}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterOSTable(type) {
+            osFilter = type;
+            document.querySelectorAll('[id^="osTabBtn-"]').forEach(btn => {
+                btn.className = "px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50";
+            });
+            const active = document.getElementById(`osTabBtn-${type}`);
+            if (active) active.className = "px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 text-white";
+            renderColetoraTable();
+        }
+
+        function despacharOS(id) {
+            demandas = demandas.map(d => d.id === id ? { ...d, status: 'em_rota', veiculo: 'Cata-Treco 02', encarregado: 'Equipe Alpha' } : d);
+            localStorage.setItem('ecociclo_demandas', JSON.stringify(demandas));
+            showToast("Equipe e caminhão despachados para o endereço!");
+            updatePendingBadge();
+            renderColetoraTable();
+        }
+
+        function abrirModalFinalizarOS(id) {
+            const item = demandas.find(d => d.id === id);
+            if (!item) return;
+
+            document.getElementById('modalOSId').value = item.id;
+            document.getElementById('modalOSTitle').innerText = `Finalizar O.S. #${item.protocolo}`;
+            document.getElementById('modalOSFotoAntes').src = item.fotoAntes;
+            
+            // Reset modal depois
+            document.getElementById('modalOSDepoisPlaceholder').classList.remove('hidden');
+            document.getElementById('modalOSFotoDepois').classList.add('hidden');
+            document.getElementById('modalOSFotoDepois').src = '';
+
+            document.getElementById('modalFinalizarOS').classList.remove('hidden');
+        }
+
+        function closeModalFinalizarOS() {
+            document.getElementById('modalFinalizarOS').classList.add('hidden');
+        }
+
+        function simulateFotoDepois() {
+            const fotoDepois = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80";
+            document.getElementById('modalOSDepoisPlaceholder').classList.add('hidden');
+            const img = document.getElementById('modalOSFotoDepois');
+            img.classList.remove('hidden');
+            img.src = fotoDepois;
+            showToast("Foto do local 100% limpo anexada!");
+        }
+
+        function handleSalvarComprovanteOS(e) {
+            e.preventDefault();
+            const id = parseInt(document.getElementById('modalOSId').value);
+            const peso = parseFloat(document.getElementById('modalOSPeso').value) || 350;
+            const destino = document.getElementById('modalOSDestino').value;
+            const encarregado = document.getElementById('modalOSEncarregado').value;
+            const obs = document.getElementById('modalOSObs').value;
+            const fotoDepois = document.getElementById('modalOSFotoDepois').src || "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80";
+
+            demandas = demandas.map(d => {
+                if (d.id === id) {
+                    return {
+                        ...d,
+                        status: 'concluida',
+                        pesoKg: peso,
+                        destino: destino,
+                        encarregado: encarregado,
+                        parecer: obs || d.parecer,
+                        fotoDepois: fotoDepois,
+                        dataConclusao: new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                    };
+                }
+                return d;
+            });
+
+            localStorage.setItem('ecociclo_demandas', JSON.stringify(demandas));
+            closeModalFinalizarOS();
+            updatePendingBadge();
+            renderColetoraTable();
+            showToast("Ordem de Serviço concluída e laudo fotográfico emitido!");
+        }
+
+        // ==============================================================
+        // 10. PREFEITURA & CHARTS (RF09, RF10)
+        // ==============================================================
+        let chartEvolucao = null;
+        let chartTipos = null;
+
+        function renderPrefeituraDashboard() {
+            initPrefeituraCharts();
+            renderCriticalHotspots();
+        }
+
+        function initPrefeituraCharts() {
+            const ctx1 = document.getElementById('chartEvolucaoMensal');
+            const ctx2 = document.getElementById('chartTiposResiduos');
+
+            if (!ctx1 || !ctx2) return;
+
+            if (chartEvolucao) chartEvolucao.destroy();
+            if (chartTipos) chartTipos.destroy();
+
+            chartEvolucao = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: ['Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov (Atual)'],
+                    datasets: [
+                        {
+                            label: 'Denúncias Recebidas',
+                            data: [142, 168, 155, 189, 174, 188],
+                            backgroundColor: '#ef4444',
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'Atendidas com Comprovante',
+                            data: [110, 139, 148, 176, 168, 178],
+                            backgroundColor: '#22c55e',
+                            borderRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+            chartTipos = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Entulho / Obras', 'Móveis & Volumosos', 'Poda Vegetal', 'Recicláveis Secos', 'Eletrônicos'],
+                    datasets: [{
+                        data: [42, 28, 16, 10, 4],
+                        backgroundColor: ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        function renderCriticalHotspots() {
+            const container = document.getElementById('criticalHotspotsContainer');
+            if (!container) return;
+
+            container.innerHTML = `
+                <div class="bg-red-50/70 p-4 rounded-2xl border border-red-200">
+                    <span class="text-xs font-bold text-red-700 uppercase tracking-wider block">Área Crítica #1</span>
+                    <strong class="text-base text-slate-900 block mt-1">Jacintinho (Grota do Cigano)</strong>
+                    <span class="text-xs text-red-600 block mt-0.5">28 denúncias recorrentes este mês</span>
+                    <p class="text-[11px] text-slate-600 mt-2">Ponto histórico de descarte de entulho e móveis em encosta.</p>
+                </div>
+                <div class="bg-red-50/70 p-4 rounded-2xl border border-red-200">
+                    <span class="text-xs font-bold text-red-700 uppercase tracking-wider block">Área Crítica #2</span>
+                    <strong class="text-base text-slate-900 block mt-1">Benedito Bentes (Av. Pratagy)</strong>
+                    <span class="text-xs text-red-600 block mt-0.5">22 denúncias recorrentes este mês</span>
+                    <p class="text-[11px] text-slate-600 mt-2">Descarte de restos de poda e lixo na faixa de domínio.</p>
+                </div>
+                <div class="bg-amber-50/70 p-4 rounded-2xl border border-amber-200">
+                    <span class="text-xs font-bold text-amber-800 uppercase tracking-wider block">Área em Observação</span>
+                    <strong class="text-base text-slate-900 block mt-1">Levada (Mercado da Produção)</strong>
+                    <span class="text-xs text-amber-700 block mt-0.5">14 denúncias este mês</span>
+                    <p class="text-[11px] text-slate-600 mt-2">Sobrecarga de caixas e embalagens plásticas descartadas.</p>
+                </div>
+            `;
+        }
+
+        function openModalNovoEcoponto() {
+            document.getElementById('modalNovoEcoponto').classList.remove('hidden');
+        }
+
+        function closeModalNovoEcoponto() {
+            document.getElementById('modalNovoEcoponto').classList.add('hidden');
+        }
+
+        function handleCadastrarNovoEcoponto(e) {
+            e.preventDefault();
+            const novo = {
+                id: Date.now(),
+                nome: document.getElementById('novoEcoNome').value,
+                endereco: document.getElementById('novoEcoEndereco').value,
+                bairro: document.getElementById('novoEcoBairro').value,
+                lat: parseFloat(document.getElementById('novoEcoLat').value) || -9.6480,
+                lng: parseFloat(document.getElementById('novoEcoLng').value) || -35.7110,
+                materiais: document.getElementById('novoEcoMateriais').value,
+                horario: document.getElementById('novoEcoHorario').value,
+                tipoTag: "entulho"
+            };
+
+            ecopontos.push(novo);
+            localStorage.setItem('ecociclo_ecopontos', JSON.stringify(ecopontos));
+            closeModalNovoEcoponto();
+            showToast("Novo Ecoponto cadastrado com sucesso no sistema geográfico!");
+        }
+
+        function exportRelatorioPDF() {
+            showToast("Gerando Relatório ESG Municipal em formato PDF...", "info");
+            setTimeout(() => {
+                showToast("Relatório de Sustentabilidade compilado com sucesso!");
+            }, 1200);
+        }
+
+        function gerarPlanoAcao() {
+            showToast("Compilando Plano Preventivo com base em calor de descarte...", "info");
+            setTimeout(() => {
+                showToast("Plano de Ação Preventivo gerado: Deslocamento prioritário do Cata-Treco para Jacintinho!");
+            }, 1000);
+        }
+
+        // ==============================================================
+        // 11. CALCULADORA DE IMPACTO ECOLÓGICO
+        // ==============================================================
+        function calculateImpact() {
+            const papel = parseFloat(document.getElementById('calcPapel').value) || 0;
+            const plastico = parseFloat(document.getElementById('calcPlastico').value) || 0;
+            const vidroMetal = parseFloat(document.getElementById('calcVidroMetal').value) || 0;
+
+            // Fórmulas ambientais padrão
+            const aguaPoupada = Math.round((papel * 20) + (plastico * 16) + (vidroMetal * 5));
+            const co2Evitado = ((papel * 1.5) + (plastico * 2.2) + (vidroMetal * 1.1)).toFixed(1);
+            const energiaSalva = Math.round((papel * 2.8) + (plastico * 5.2) + (vidroMetal * 2.0));
+
+            document.getElementById('resAgua').innerText = `${aguaPoupada} L`;
+            document.getElementById('resCo2').innerText = `${co2Evitado} kg`;
+            document.getElementById('resEnergia').innerText = `${energiaSalva} kWh`;
+        }
+
+        // ==============================================================
+        // 12. UTILITIES: TOAST & PROFILE
+        // ==============================================================
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const title = document.getElementById('toastTitle');
+            const msg = document.getElementById('toastMessage');
+            const icon = document.getElementById('toastIcon');
+            const iconBox = document.getElementById('toastIconContainer');
+
+            msg.innerText = message;
+
+            if (type === 'warning') {
+                title.innerText = "Atenção";
+                icon.className = "fa-solid fa-triangle-exclamation text-amber-400 text-lg";
+                iconBox.className = "w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0";
+            } else if (type === 'info') {
+                title.innerText = "Informativo";
+                icon.className = "fa-solid fa-circle-info text-sky-400 text-lg";
+                iconBox.className = "w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0";
+            } else {
+                title.innerText = "Sucesso";
+                icon.className = "fa-solid fa-circle-check text-brand-400 text-lg";
+                iconBox.className = "w-9 h-9 rounded-xl bg-brand-500/20 text-brand-400 flex items-center justify-center shrink-0";
+            }
+
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-24', 'opacity-0');
+            }, 3500);
+        }
+
+        function toggleMobileMenu() {
+            document.getElementById('mobileMenu').classList.toggle('hidden');
+        }
+
+        function openActorProfileModal() {
+            showToast(`Perfil atual: ${document.getElementById('actorName').innerText} (${document.getElementById('actorBadgeRole').innerText})`, 'info');
+        }
+
+        // Start Up
+        window.addEventListener('DOMContentLoaded', () => {
+            updateNavbarLinks();
+            updatePendingBadge();
+            calculateImpact();
+            // Default view
+            navigateTo('cid-home');
+        });
+    </script>
+</body>
+</html>
